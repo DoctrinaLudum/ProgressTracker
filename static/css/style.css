@@ -1,0 +1,155 @@
+/* ==========================================================================
+   1. LAYOUT GERAL
+   ========================================================================== */
+
+   body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    /* background-color: #ffffff; /* Cor de fundo geral da página, se desejar */
+}
+
+main.container {
+    flex: 1; /* Faz o conteúdo principal (main) ocupar o espaço restante */
+}
+
+/* ==========================================================================
+   2. CABEÇALHO (Header)
+   ========================================================================== */
+
+.app-header {
+    background-color: #f8f9fa; /* Cor de fundo (Bootstrap 'light') */
+    /* border-bottom: 1px solid #dee2e6; */ /* A borda já vem das classes Bootstrap, mas pode controlar aqui */
+}
+
+/* Estilo para o link principal no cabeçalho (que contém ícone e título) */
+.app-header a.text-success {
+    /* A cor vem da classe text-success (#198754), mas pode sobrescrever: */
+    /* color: #198754; */
+    text-decoration: none;
+}
+.app-header a.text-success:hover {
+    opacity: 0.9; /* Efeito suave no hover */
+    text-decoration: none;
+}
+
+
+/* ==========================================================================
+   3. RODAPÉ (Footer)
+   ========================================================================== */
+
+.app-footer {
+    font-size: 0.9em;
+    background-color: #f8f9fa; /* Cor de fundo (Bootstrap 'dark'). Mude aqui se desejar outra cor. */
+    color: #36393b;            /* Cor do texto geral (cinza claro/branco suave) */
+}
+
+
+/* Links dentro do rodapé */
+.app-footer a {
+    color: #36393b; /* Cor branca para links, para destaque no fundo escuro */
+    text-decoration: underline;
+}
+
+.app-footer a:hover {
+    color: #ffee00; /* Branco um pouco mais suave no hover */
+    text-decoration: none;
+}
+
+/* Ícone de coração no rodapé */
+.app-footer .bi-heart-fill {
+    vertical-align: baseline;
+}
+
+
+
+/* ==========================================================================
+   4. ÁREA DE RESULTADOS E TABELAS (#results-area)
+   ========================================================================== */
+
+/* Padding geral nas células das tabelas dentro da área de resultados */
+#results-area .table > tbody > tr > td,
+#results-area .table > thead > tr > th {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+    vertical-align: middle; /* Alinha verticalmente o conteúdo da célula */
+}
+
+/* Arredondar o container da tabela (quando dentro de um card) */
+#results-area .card .table-responsive {
+    border-radius: var(--bs-border-radius);
+    overflow: hidden; /* Esconde os cantos retos da tabela */
+}
+
+/* Remove fundo do cabeçalho da tabela quando usar a classe .bg-success-subtle
+   para que a cor do thead (definida no html) prevaleça */
+#results-area .table > thead.bg-success-subtle > tr > th {
+    background-color: transparent;
+    border-color: inherit; /* Herda a cor da borda do thead */
+}
+
+/* ==========================================================================
+   5. INDICADORES E ELEMENTOS ESPECÍFICOS
+   ========================================================================== */
+
+/* Estilo para o indicador 'N/D' (Não Disponível) */
+.na-indicator {
+    cursor: help;
+    color: #6c757d; /* Cinza padrão do Bootstrap (muted) */
+    font-style: italic;
+}
+
+/* Estilo para o asterisco '*' de valor acumulado */
+.accumulation-indicator-star {
+    cursor: help;
+    color: #fd7e14; /* Laranja padrão Bootstrap */
+    font-weight: bold;
+    vertical-align: super; /* Alinha como superescrito */
+    font-size: 0.8em; /* Tamanho um pouco menor */
+    margin-left: 2px;
+}
+
+/* ==========================================================================
+   6. ESTILOS DA LOJA SAZONAL (Exemplo de Seção)
+   ========================================================================== */
+
+/* Cor para a moeda SFL (Flower) */
+.currency-sfl {
+    color: #E83E8C; /* Cor Rosa padrão do Bootstrap */
+    /* Ou use outro rosa: color: HotPink; color: #FF69B4; */
+    font-weight: bold; /* Opcional: Deixar em negrito */
+}
+
+/* Cor para a moeda Ticket Sazonal (Genissed) */
+.currency-ticket {
+    color: #198754; /* Cor Verde padrão 'success' do Bootstrap */
+    /* Ou use outro verde: color: mediumseagreen; */
+    font-weight: bold; /* Opcional: Deixar em negrito */
+}
+
+/* Cor para a moeda Broken Pillar */
+.currency-broken_pillar {
+    color: #6c757d; /* Cor Cinza padrão 'secondary' do Bootstrap */
+    font-weight: bold; /* Opcional: Deixar em negrito */
+}
+
+
+/* ==========================================================================
+   7. ESTILOS DE DESTAQUE DOS ITENS USADOS NA PROJEÇÃO
+   ========================================================================== */
+
+/* Estilo para destacar itens usados no caminho de desbloqueio mínimo */
+.unlock-path-item {
+    border: 2px solid #fd7e14; /* Laranja Bootstrap (ou outra cor) */
+    opacity: 0.85; /* Levemente transparente para diferenciar */
+    box-shadow: 0 0 8px rgba(253, 126, 20, 0.5); /* Sombra suave opcional */
+    background-color: #fff3e8; /* Fundo levemente alaranjado opcional */
+}
+
+/* Garante que o destaque de seleção principal prevaleça sobre o destaque do caminho */
+.item-selectable.border-primary.shadow {
+    border-color: #0d6efd !important; /* Cor primária do Bootstrap */
+    opacity: 1 !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 123, 255, 0.15) !important;
+    background-color: #ffffff !important; /* Fundo normal */
+}

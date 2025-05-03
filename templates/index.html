@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+{% block title %}Projeções Sazonais - Progress Tracker{% endblock %} {# Título Atualizado #}
+
+{% block content %}
+
+    {# --- SEÇÃO 1: Introdução e Cards (SÓ APARECEM NO INÍCIO) --- #}
+    {% if not farm_id_submitted %} {# Condição para mostrar só na carga inicial #}
+        <div class="text-center mb-5 mt-4">
+            <h2 class="text-success">Planeje sua Temporada no Sunflower Land!</h2>
+            <p class="lead text-muted">
+                 Estime seus ganhos de <strong class="text-success">{{ token_name|default('Tokens Sazonais') }}</strong>, calcule o tempo para obter itens sazonais e simule cenários!
+            </p>
+        </div>
+
+        <div class="row mb-5 justify-content-center">
+            {# Card 1: Estimativa #}
+            <div class="col-md-4 mb-3">
+                <div class="card text-center h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="bi bi-graph-up-arrow fs-1 text-primary"></i>
+                        <h5 class="card-title mt-3">Estimativa de Ganho</h5>
+                        <p class="card-text small">Calcule sua média diária de tickets e projete seus ganhos futuros na temporada atual.</p>
+                    </div>
+                </div>
+            </div>
+            {# Card 2: Calculadora #}
+            <div class="col-md-4 mb-3">
+                <div class="card text-center h-100 shadow-sm">
+                    <div class="card-body">
+                         <i class="bi bi-cart-check fs-1 text-info"></i>
+                        <h5 class="card-title mt-3">Calculadora de Itens</h5>
+                        <p class="card-text small">Defina um item desejado (pelo custo em tickets) e veja a estimativa de quantos dias faltam para comprá-lo.</p>
+                    </div>
+                </div>
+            </div>
+             {# Card 3: Simulação #}
+            <div class="col-md-4 mb-3">
+                 <div class="card text-center h-100 shadow-sm">
+                    <div class="card-body">
+                         <i class="bi bi-sliders fs-1 text-warning"></i>
+                        <h5 class="card-title mt-3">Simulador</h5>
+                        <p class="card-text small">Teste cenários: "E se eu ganhar +X tickets por dia?". Veja como isso impacta o tempo para atingir suas metas.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+         {# Título para o formulário, mostrado apenas na carga inicial #}
+         <div class="row justify-content-center">
+            <div class="col-lg-6">
+                 <h4 class="text-center text-success mb-3">Comece Agora</h4>
+            </div>
+        </div>
+    {% endif %} {# Fim da condição para Intro/Cards/Título inicial #}
+
+
+    {# --- SEÇÃO 2: Formulário de Busca --- #}
+    {% if not farm_id_submitted %}
+    <div class="row justify-content-center mb-4">
+        <div class="col-lg-6">
+            {# Título "Buscar Outra Fazenda" foi REMOVIDO daqui #}
+            <form method="POST" action="/" id="farm-form">
+                <div class="mb-3">
+                    {# Label original removida conforme seu arquivo, mas placeholder adicionado #}
+                    <input type="text" class="form-control form-control-lg" id="farm_id" name="farm_id" required value="{{ farm_id_submitted if farm_id_submitted else '' }}" placeholder="Digite o Farm ID aqui...">
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-success btn-lg"> {# Aumentado o botão com btn-lg #}
+                         <i class="bi bi-search me-2"></i>
+                         Buscar Dados {# Texto do botão simplificado #}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {# --- SEÇÃO 3: Indicador de Carregamento --- #}
+    <div id="loading-indicator" style="display: none; text-align: center; margin-top: 20px;">
+        <img src="{{ url_for('static', filename='images/minting.gif') }}" alt="Processando..." width="100">
+        <p>Buscando dados...</p>
+    </div>
+
+    {# --- SEÇÃO 4: Área de Resultados --- #}
+    <div class="mt-0 pt-0" id="results-area">
+
+        {% if error_message %}
+            {# Adiciona border-top aqui quando há erro #}
+            <div class="pt-0 border-top">
+                 <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+            </div>
+
+        {% elif farm_data %}
+        <div>
+
+          {# --- NOVO CARD PARA IDENTIFICAÇÃO E SALDOS --- #}
+          <div class="card mb-3 shadow-sm"> {# Margem abaixo e sombra suave #}
+              <div class="card-body">
+                  {# Título H2 dentro do card #}
+                  <h2 class="mb-3 fw-normal card-title"> {# Adicionada classe card-title #}
+                      Fazenda
+                      {% if farm_data.username %}
+                          <strong class="text-success">{{ farm_data.username }}</strong>
+                      {% else %}
+                          <em>(Nome não disponível)</em>
+                      {% endif %}
+                      <span class="badge bg-secondary fw-normal ms-2">ID: {{ farm_id_submitted }}</span>
+                  </h2>
+  
+                  {# Saldos DENTRO do mesmo card, usando list-group-flush #}
+                  <ul class="list-group list-group-flush">
+                      <li class="list-group-item ps-0"> {# ps-0 remove padding esquerdo do item #}
+                          <strong>Moedas (Coins):</strong> {% set coins_val = farm_data.get('coins') %}{% if coins_val is not none %}{{ "%.2f"|format(coins_val|float) }}{% else %}N/A{% endif %}
+                      </li>
+                      <li class="list-group-item ps-0"> {# ps-0 remove padding esquerdo do item #}
+                          <strong>Saldo SFL (Balance):</strong> {{ farm_data.get('balance', 'N/A') }}
+                      </li>
+                  </ul>
+              </div> {# Fim do card-body #}
+          </div>
+
+                {# Bloco de Atividade Recente (Alerta "Nenhuma nova..." REMOVIDO) #}
+                {% if (live_completions is defined and live_completions > 0) or (live_tokens is defined and live_tokens > 0) or (live_cost_sfl is defined and live_cost_sfl > 0) %}
+                 <div class="alert alert-success small mt-3" role="alert"> <h6 class="alert-heading mb-1" style="font-size: 0.9rem;">Atividade Desde a Última Verificação:</h6> <ul class="list-unstyled mb-0"> {% if live_completions > 0 %}<li>- <strong>{{ live_completions }}</strong> nova(s) entrega(s) concluída(s).</li>{% endif %} {% if live_tokens > 0 %}<li>- Tokens Sazonais Estimados Ganhos (Base): <strong>{{ live_tokens }}</strong>.</li>{% endif %} {% if live_cost_sfl > 0 %}<li>- Custo Flower Estimado Incorrido: <strong>~{{ "%.2f"|format(live_cost_sfl|float) }}</strong> <em class="text-muted" style="font-size: 0.9em;">(...)</em></li>{% endif %} </ul> </div>
+                 {# O elif que mostrava "Nenhuma nova entrega" foi REMOVIDO #}
+                {% endif %}
+
+                {# Bloco de Inventário (Existente - CORRIGIDO para aparecer só aqui) #}
+                <div class="card mb-3 bg-light border-secondary">
+                    <div class="card-header bg-secondary text-white" id="inventoryHeader" role="button" data-bs-toggle="collapse" data-bs-target="#collapseInventory" aria-expanded="false" aria-controls="collapseInventory" style="cursor: pointer;">
+                       Inventário (Exemplos)
+                    </div>
+                    <div id="collapseInventory" class="collapse" aria-labelledby="inventoryHeader">
+                        <ul class="list-group list-group-flush">
+                            {% set inventory_items_shown = [] %}
+                            {% for item, amount in farm_data.get('inventory', {}).items() %}
+                                {% if item in ['Sunflower', 'Potato', 'Wood', 'Stone', 'Iron', 'Gold', 'Egg'] %}
+                                    <li class="list-group-item bg-light">{{ item }}: {{ amount }}</li>
+                                    {% set _ = inventory_items_shown.append(item) %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if not inventory_items_shown %}
+                                <li class="list-group-item bg-light">Nenhum item de exemplo encontrado no inventário.</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+
+                {# --- 4.2: Estrutura Correta e ÚNICA de Abas para Análises --- #}
+                <ul class="nav nav-tabs mt-4" id="analysisTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="projection-tab" data-bs-toggle="tab" data-bs-target="#projection-tab-pane" type="button" role="tab" aria-controls="projection-tab-pane" aria-selected="true">
+                            <i class="bi bi-calculator me-1"></i> Projeções Sazonais
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="shop-tab" data-bs-toggle="tab" data-bs-target="#shop-tab-pane" type="button" role="tab" aria-controls="shop-tab-pane" aria-selected="false">
+                           <i class="bi bi-shop me-1"></i> Loja Sazonal
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="deliveries-tab" data-bs-toggle="tab" data-bs-target="#deliveries-tab-pane" type="button" role="tab" aria-controls="deliveries-tab-pane" aria-selected="false">
+                           <i class="bi bi-archive me-1"></i> Histórico de Entregas
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                       <button class="nav-link disabled" id="bounties-tab" data-bs-toggle="tab" data-bs-target="#bounties-tab-pane" type="button" role="tab" aria-controls="bounties-tab-pane" aria-selected="false">
+                           <i class="bi bi-list-check me-1"></i> Tarefas (Bounties) <small>(Em breve)</small>
+                       </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content pt-3" id="analysisTabsContent">
+                    {# Painel Projeções #}
+                    <div class="tab-pane fade show active" id="projection-tab-pane" role="tabpanel" aria-labelledby="projection-tab" tabindex="0">
+                        <h3 class="text-primary mb-3">Calculadora de Tickets <span class="badge bg-primary">{{ token_name|default('Sazonal') }}</span></h3>
+                        <p><i>(Interface da calculadora e projeções será implementada aqui...)</i></p>
+                    </div>
+                    {# Inclui o conteúdo da loja #}
+                    <div class="tab-pane fade" id="shop-tab-pane" role="tabpanel" aria-labelledby="shop-tab" tabindex="0">
+                        {% include '_shop_content.html' %} 
+                   </div>
+                    {# Painel Histórico #}
+                    <div class="tab-pane fade" id="deliveries-tab-pane" role="tabpanel" aria-labelledby="deliveries-tab" tabindex="0">
+                       {% include '_deliveries_content.html' %}
+                    </div>
+                    {# Painel Tarefas #}
+                    <div class="tab-pane fade" id="bounties-tab-pane" role="tabpanel" aria-labelledby="bounties-tab" tabindex="0">
+                       {% include '_bounties_content.html' %}
+                    </div>
+                </div>
+                {# --- Fim da Estrutura Correta de Abas --- #}
+
+             </div> {# Fim da div que adiciona border-top e padding #}
+
+        {% elif farm_id_submitted and not error_message %}
+             {# Adiciona border-top aqui quando há aviso #}
+             <div class="pt-0 border-top">
+                <div class="alert alert-warning" role="alert">
+                    Não foram encontrados dados detalhados para o Farm ID {{ farm_id_submitted }}. Verifique o ID ou tente novamente mais tarde.
+                </div>
+             </div>
+        {% endif %} {# Fim do if/elif/else principal da área de resultados #}
+
+    </div> {# Fim da #results-area #}
+
+{% endblock %}
+
+{% block scripts %}{{ super() }}{% endblock %}

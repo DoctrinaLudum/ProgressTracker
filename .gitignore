@@ -6,6 +6,32 @@ __pycache__/
 # C extensions
 *.so
 
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+*.venv
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Service account keys / Secrets (IMPORTANTE!)
+*.json
+
+# Outros arquivos temporários ou de dependência (adicione se necessário)
+# *.log
+# *.tmp
 # Distribution / packaging
 .Python
 build/

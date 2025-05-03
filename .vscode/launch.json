@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Flask", // Nome que aparecerá no VS Code
+            "type": "debugpy",        // Tipo de depurador
+            "request": "launch",     // Queremos 'lançar' a aplicação
+            "module": "flask",       // Diz ao VS Code para usar o módulo 'flask' para rodar
+            "env": {
+                // Variáveis de ambiente necessárias para o Flask
+                "FLASK_APP": "main.py", // Arquivo principal da sua aplicação
+                "FLASK_DEBUG": "1",     // Ativa o modo debug do Flask (similar ao debug=True)
+
+                // <<< IMPORTANTE: Coloque sua variável do Google Cloud AQUI >>>
+                // Substitua pelo caminho COMPLETO e CORRETO do seu arquivo .json
+                "GOOGLE_APPLICATION_CREDENTIALS": "C:\\Users\\atual\\Downloads\\ProgressTracker\\sfl-tracker-app-84739e970dda.json"
+            },
+            "args": [
+                // Argumentos para o comando 'flask run'
+                "run",
+                "--no-reload",    // O debugger do VS Code lida com recarregamento, às vezes '--no-reload' ajuda
+                "--host=0.0.0.0", // Mesmo host que você usava
+                "--port=81"       // Mesma porta que você usava
+            ],
+            "jinja": true, // Permite depurar templates Jinja (seus HTMLs)
+            "justMyCode": true // Geralmente deixamos true
+        }
+    ]
+}

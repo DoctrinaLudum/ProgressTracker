@@ -6,10 +6,15 @@ hidden = [".pythonlibs"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["sqlite-interactive"]
 
 [deployment]
 run =  ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
 deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 81
+externalPort = 3000
 
 [[ports]]
 localPort = 5000

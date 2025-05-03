@@ -1,0 +1,171 @@
+{# templates/_shop_content.html #}
+{# Tenta agrupar os itens por tier e ordenar os tiers #}
+{% set items_by_tier = shop_items_all.items() | groupby('1.tier') | list %}
+{% set sorted_tiers = items_by_tier | sort(attribute='0') %}
+
+
+{# Container principal para as duas colunas #}
+<div class="row g-4">
+
+    {# --- COLUNA ESQUERDA (LOJA VISUAL - MAIS COMPACTA) --- #}
+    <div class="col-md-7 col-lg-8">
+        {# Card opcional para envolver a loja #}
+        <div class="card">
+            <div class="card-header bg-info text-white">
+               <i class="bi bi-shop me-2"></i> Itens da Loja Sazonal
+            </div>
+            <div class="card-body">
+                {% for tier, items_in_tier_tuple in sorted_tiers %}
+                <div class="mb-4">
+                    {# Cabeçalho do Tier #}
+                    <h5 class="mb-3 pb-2 border-bottom">
+                        Tier {{ tier }}
+                        {% if tier == 1 %}(Normal)
+                        {% elif tier == 2 %}(Raro <small class="text-muted">- Req. 4x T1</small>)
+                        {% elif tier == 3 %}(Épico <small class="text-muted">- Req. 4x T2</small>)
+                        {% elif tier == 4 %}(Mega <small class="text-muted">- Req. 4x T3</small>)
+                        {% endif %}
+                    </h5>
+
+                    {# Grid para os itens do tier atual #}
+                    {# Reduzido gutter (g-2), aumentado colunas em telas grandes (lg-5, xl-6) #}
+                    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 row-cols-xl-6 g-2">
+                        {% set items_sorted_by_name = items_in_tier_tuple | map(attribute='0') | list | sort %}
+                        {% for item_name in items_sorted_by_name %}
+                            {% set item_data = shop_items_all[item_name] %}
+                            <div class="col">
+                                {# Card para cada item - REMOVIDO h-100 #}
+                                <div class="card text-center item-card
+                                            {% if item_data.currency == 'ticket' %} item-selectable ticket-item border-success{% endif %}
+                                            {% if item_data.currency == 'sfl' %} sfl-item{% endif %}
+                                            {% if item_data.currency == 'broken_pillar' %} pillar-item{% endif %}"
+                                     {% if item_data.currency == 'ticket' %}
+                                         data-item-name="{{ item_name }}" data-item-cost="{{ item_data.cost }}" data-item-tier="{{ item_data.tier }}" role="button" tabindex="0"
+                                     {% endif %}>
+
+                                    {# Imagem com data attributes e classe #}
+                                    {% set img_filename_base = item_name.lower().replace(' ', '_').replace('-', '_') %}
+                                    {% set img_folder = 'images/shop_items/' %} {# CONFIRA ESSA PASTA #}
+                                    {% set img_path_png = img_folder + img_filename_base + '.png' %}
+                                    {% set img_path_webp = img_folder + img_filename_base + '.webp' %}
+                                    {% set placeholder_path = url_for('static', filename=img_folder + 'placeholder.png') %}
+
+                                    <img src="{{ url_for('static', filename=img_path_png) }}"
+                                         class="card-img-top p-1 shop-item-image" {# Padding da imagem reduzido p-1 #}
+                                         alt="{{ item_name }}"
+                                         style="max-height: 50px; object-fit: contain; margin: auto;" {# Altura máxima reduzida #}
+                                         data-placeholder-src="{{ placeholder_path }}"
+                                         >
+
+                                    {# Corpo do card com padding e fontes reduzidos #}
+                                    <div class="card-body p-1">
+                                        <h6 class="card-title mb-0" style="font-size: 0.68rem; line-height: 1.1;">{{ item_name }}</h6> {# Fonte e altura linha reduzidas #}
+                                        <p class="card-text mb-0" style="font-size: 0.65rem;"> {# Fonte reduzida #}
+                                            <strong>
+                                                {{ item_data.cost }}
+                                                {% if item_data.currency == 'sfl' %}
+                                                    {# Usa a nova classe CSS para rosa #}
+                                                    <span class="currency-sfl small">Flower</span>
+                                                {% elif item_data.currency == 'ticket' %}
+                                                     {# Usa a nova classe CSS para verde #}
+                                                    <span class="currency-ticket small">{{ token_name|default('Tickets') }}</span>
+                                                {% elif item_data.currency == 'broken_pillar' %}
+                                                     {# Usa a nova classe CSS para cinza (ou outra cor) #}
+                                                    <span class="currency-broken_pillar small">Broken Pillars</span>
+                                                {% else %}
+                                                    {{ item_data.currency }}
+                                                {% endif %}
+                                            </strong>
+                                        </p>
+                                    </div>
+                                </div> {# Fim Card Item #}
+                            </div> {# Fim Col Item #}
+                        {% endfor %} {# Fim Loop Itens #}
+                    </div> {# Fim Row Tier #}
+                </div> {# Fim Bloco Tier #}
+                {% endfor %} {# Fim Loop Tiers #}
+            </div> {# Fim card-body da loja #}
+        </div> {# Fim card da loja #}
+    </div>
+    {# --- FIM COLUNA ESQUERDA --- #}
+
+    {# --- COLUNA DIREITA (CALCULADORA / RESULTADOS) --- #}
+    <div class="col-md-5 col-lg-4">
+        <div class="sticky-top" style="top: 20px;"> {# Tenta manter visível #}
+            <div class="card">
+                <div class="card-header">
+                   <i class="bi bi-calculator me-1"></i> Projeção para Item Selecionado
+                </div>
+                <div class="card-body">
+                    {# Área para exibir a Taxa Média Diária #}
+                    <div class="alert alert-info small p-2 mb-3">
+                        <i class="bi bi-speedometer2 me-1"></i> Taxa Diária (Est*):
+                        <strong> {% if avg_daily_rate is not none and avg_daily_rate > 0 %}{{ "%.1f"|format(avg_daily_rate) }}/dia{% else %}N/D{% endif %}</strong>
+                         <small class="text-muted d-block mt-1">*Cálculo após 05/05.</small>
+                    </div>
+
+                    {# --- Área onde os resultados da projeção aparecerão --- #}
+                    <div id="projection-results-area">
+                         {# --- Conteúdo inicial/placeholder --- #}
+                         <p class="text-center text-muted small" id="projection-placeholder-text">
+                            <i class="bi bi-info-circle me-1"></i> Clique em um item de <span class="badge bg-warning text-dark">{{ token_name|default('Ticket') }}</span> na loja ao lado para calcular.
+                        </p>
+                        {# --- Fim do conteúdo inicial --- #}
+
+                        {# --- Estrutura para exibir resultados (será preenchida via JS) --- #}
+                        {# Exemplo (manter comentado ou remover por enquanto):
+                        <h6>Resultado para: <strong class="text-success" id="result-item-name">NOME_ITEM</strong></h6>
+                        <ul class="list-unstyled mb-0 small">
+                            <li>Custo Total (c/ desbloq.): <strong id="result-item-cost">VALOR CUSTO</strong></li>
+                            <li>Dias Estimados: <strong id="result-projected-days">VALOR DIAS</strong></li>
+                        </ul>
+                         #}
+                    </div>
+                    {# --- Fim da área de resultados --- #}
+
+                    {# --- NOVA SEÇÃO: Simulador --- #}
+                    <div id="simulator-section" style="display: none;">
+                        <hr class="my-3"> 
+                        <h6 class="text-warning mb-2">
+                            Simulador "E se...?"
+                            <i class="bi bi-info-circle ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Veja quantos dias levaria para obter o item selecionado se sua taxa diária de ganho fosse diferente."></i>
+                        </h6>
+                        <div class="row g-2 align-items-center mb-2">
+                            <div class="col">
+                                <label for="simulated-rate-input" class="form-label visually-hidden">Nova Taxa Diária</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">Se ganhar:</span>
+                                    <input type="number" class="form-control" id="simulated-rate-input" placeholder="Tickets/dia" min="0.1" step="0.1">
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                {# Botão tipo 'button' para não submeter form, JS cuida do clique #}
+                                <button type="button" class="btn btn-warning btn-sm" id="simulate-button">
+                                    Simular Dias
+                                </button>
+                            </div>
+                    </div>
+                    {# Área para mostrar o resultado da simulação #}
+                    <div id="simulation-results-area" class="small text-muted" style="min-height: 1.5em;">
+                        {# JS preenche aqui, ex: "Com X/dia: ~Y dias" #}
+                    </div>
+                {# --- FIM DA SEÇÃO: Simulador --- #}
+
+                </div> {# Fim card-body direita #}
+            </div> {# Fim card direita #}
+        </div> {# Fim sticky-top #}
+    </div>
+    {# --- FIM COLUNA DIREITA --- #}
+
+</div> {# Fim da row principal #}
+
+{# CSS Embutido - Mover para style.css #}
+<style>
+    .item-selectable { cursor: pointer; transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out; }
+    .item-selectable:hover { transform: scale(1.03); box-shadow: 0 0.5rem 1rem rgba(0, 123, 255, 0.15); border-color: #0d6efd !important; }
+    .item-selectable.border-success { border-width: 2px; }
+    .item-card img { border-radius: 3px; margin-top: 3px; background-color: #f8f9fa; /* Fundo claro para imgs transparentes */ }
+    /* Reduz margem inferior padrão dos parágrafos dentro do card-body da loja para compactar */
+    .item-card .card-body p { margin-bottom: 0.1rem; }
+    .item-card .card-body h6 { margin-bottom: 0.1rem; }
+</style>
