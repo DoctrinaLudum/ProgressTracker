@@ -298,7 +298,7 @@ def calculate_projection():
 
     item_name = data.get('item_name')
     simulated_rate_str = data.get('simulated_rate') # Pode ser None
-
+    marked_item_names = data.get('marked_items', []) # Pega a lista, default: lista vazia []
     log.info(f"Calculando projeção AJAX - Item: {item_name}, Taxa Simulada: {simulated_rate_str}")
 
     if not item_name:
@@ -358,29 +358,40 @@ def calculate_projection():
     # --- Calcula Custo, Itens de Desbloqueio e Dias Projetados ---
     try:
         # 1. Calcula custo total E obtém a lista de itens de desbloqueio
-        custo_info = analysis.calcular_custo_total_item(item_name, itens_loja_completo)
-        custo_calculado = custo_info['cost']
-        unlock_items_list = custo_info['unlock_items']
+        custo_info = analysis.calcular_custo_total_item(item_name, itens_loja_completo, marked_item_names)
+        custo_total_calculado = custo_info['total_cost']
+        custo_item_base = custo_info['item_cost'] # Pode ser None se item não for de ticket
+        custo_desbloqueio_calculado = custo_info['unlock_cost']
+        unlock_items_detalhados = custo_info['unlock_items_details'] # Lista de dicts
+        # Pega também a lista simples de nomes para o highlight atual no JS (pode ser otimizado depois)
+        unlock_items_list = [item['name'] for item in unlock_items_detalhados] 
 
         # 2. Calcula dias projetados (se custo for válido)
-        if custo_calculado != float('inf'):
-            dias_projetados = analysis.projetar_dias_para_item(custo_calculado, rate_to_use)
+        if custo_total_calculado != float('inf'):
+            dias_projetados = analysis.projetar_dias_para_item(custo_total_calculado, rate_to_use)
         else:
             dias_projetados = float('inf') # Custo infinito -> Dias infinitos
 
-        log.info(f"Resultados Cálculo AJAX: Custo={custo_calculado}, Dias={dias_projetados}, ItensDesbloq={unlock_items_list} (Taxa Usada={rate_to_use})")
+        log.info(f"Resultados Cálculo AJAX: Custo={custo_total_calculado}, Dias={dias_projetados}, ItensDesbloq={unlock_items_list} (Taxa Usada={rate_to_use})")
 
         # 3. Monta e retorna a resposta JSON
         return jsonify({
             "success": True,
             "item_name": item_name,
-            "calculated_cost": custo_calculado if custo_calculado != float('inf') else None,
+            # Mantém calculated_cost como o custo TOTAL para compatibilidade e exibição principal
+            "calculated_cost": custo_total_calculado if custo_total_calculado != float('inf') else None,
             "projected_days": dias_projetados if dias_projetados != float('inf') else None,
             "avg_daily_rate_used": rate_to_use,
-            "is_simulation": bool(simulated_rate), # True se usamos a taxa simulada válida
+            "is_simulation": bool(simulated_rate),
             "token_name": getattr(config, 'SEASONAL_TOKEN_NAME', 'Ticket'),
-            "unlock_path_items": unlock_items_list, # Lista de nomes para destaque no JS
-            "remaining_season_days": remaining_days # Dias restantes para aviso no JS
+            # Dados para destaque visual (lista de nomes)
+            "unlock_path_items": unlock_items_list,
+            # Novos dados para a seção "Detalhes do Cálculo"
+            "base_item_cost": custo_item_base,
+            "calculated_unlock_cost": custo_desbloqueio_calculado if custo_desbloqueio_calculado != float('inf') else None,
+            "unlock_path_items_details": unlock_items_detalhados, # Lista de dicts com detalhes
+            # Dados para aviso de tempo
+            "remaining_season_days": remaining_days
         })
 
     except Exception as e:

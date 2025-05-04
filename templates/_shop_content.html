@@ -34,14 +34,26 @@
                         {% for item_name in items_sorted_by_name %}
                             {% set item_data = shop_items_all[item_name] %}
                             <div class="col">
-                                {# Card para cada item - REMOVIDO h-100 #}
-                                <div class="card text-center item-card
+                                    {# --- Card do Item - Adiciona position-relative --- #}
+                                    <div class="card text-center item-card position-relative {# <--- ADICIONADO position-relative #}
                                             {% if item_data.currency == 'ticket' %} item-selectable ticket-item border-success{% endif %}
                                             {% if item_data.currency == 'sfl' %} sfl-item{% endif %}
                                             {% if item_data.currency == 'broken_pillar' %} pillar-item{% endif %}"
-                                     {% if item_data.currency == 'ticket' %}
-                                         data-item-name="{{ item_name }}" data-item-cost="{{ item_data.cost }}" data-item-tier="{{ item_data.tier }}" role="button" tabindex="0"
-                                     {% endif %}>
+                                        {% if item_data.currency == 'ticket' %}
+                                            data-item-name="{{ item_name }}" data-item-cost="{{ item_data.cost }}" data-item-tier="{{ item_data.tier }}" role="button" tabindex="0"
+                                        {% endif %}>
+
+                                    {# --- NOVO: Checkbox para Marcar Item --- #}
+                                    <div class="form-check position-absolute top-0 end-0 p-1" style="z-index: 10;">
+                                        <input class="form-check-input unlock-item-marker" type="checkbox"
+                                            value="{{ item_name }}"
+                                            id="mark-{{ item_name|lower|replace(' ', '-') }}"
+                                            data-item-name="{{ item_name }}"
+                                            data-item-tier="{{ item_data.tier }}"
+                                            title="Marcar este item como 'já adquirido' ou 'planejado' para cálculo de desbloqueio">
+                                        {# Removido label visual, tooltip serve como guia #}
+                                    </div>
+                                    {# --- FIM NOVO --- #}
 
                                     {# Imagem com data attributes e classe #}
                                     {% set img_filename_base = item_name.lower().replace(' ', '_').replace('-', '_') %}
@@ -112,17 +124,11 @@
                         </p>
                         {# --- Fim do conteúdo inicial --- #}
 
-                        {# --- Estrutura para exibir resultados (será preenchida via JS) --- #}
-                        {# Exemplo (manter comentado ou remover por enquanto):
-                        <h6>Resultado para: <strong class="text-success" id="result-item-name">NOME_ITEM</strong></h6>
-                        <ul class="list-unstyled mb-0 small">
-                            <li>Custo Total (c/ desbloq.): <strong id="result-item-cost">VALOR CUSTO</strong></li>
-                            <li>Dias Estimados: <strong id="result-projected-days">VALOR DIAS</strong></li>
-                        </ul>
-                         #}
                     </div>
                     {# --- Fim da área de resultados --- #}
-
+                    <div id="calculation-details-area" class="mt-3 border-top pt-2">
+                        {# O JavaScript irá preencher esta área com os detalhes do cálculo #}
+                    </div>
                     {# --- NOVA SEÇÃO: Simulador --- #}
                     <div id="simulator-section" style="display: none;">
                         <hr class="my-3"> 

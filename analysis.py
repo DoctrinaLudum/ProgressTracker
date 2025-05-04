@@ -171,69 +171,226 @@ def calcular_estimativa_token_deliveries(farm_id, data_inicio_str, data_fim_str,
 
 # --- LÓGICA PARA PROJEÇÕES SAZONAIS (MODIFICADA) ---
 
-# Custo Minimo (MODIFICADO para retornar itens)
-def calcular_custo_minimo_desbloqueio(tier_alvo, itens_loja):
+# Custo Minimo (MODIFICADO para retornar detalhes dos itens no caminho)
+def calcular_custo_minimo_desbloqueio(tier_alvo, itens_loja, marked_item_names):
     """
-    Calcula o custo mínimo em TICKETS para desbloquear um tier E retorna os itens usados.
+    Calcula o custo mínimo em TICKETS para desbloquear um tier, considerando itens
+    pré-marcados (Opção B). Retorna custo de desbloqueio e lista detalhada
+    de todos os itens usados no caminho.
 
     Args:
-        tier_alvo (int): O tier que se deseja alcançar (ex: 2, 3, 4).
-        itens_loja (dict): O dicionário SEASONAL_SHOP_ITEMS do config.py.
+        tier_alvo (int): Tier a alcançar.
+        itens_loja (dict): Dicionário de itens.
+        marked_item_names (list[str]): Lista de nomes dos itens marcados.
+
+    Returns:
+        dict: {'unlock_cost': int | float('inf'), 'unlock_items_details': list[dict]}
+              Retorna custo de desbloqueio (só tickets) e lista de dicionários
+              com detalhes de cada item no caminho [{'name':..., 'cost':..., 'currency':...}].
+    """
+    if not isinstance(itens_loja, dict) or not itens_loja:
+        # ... (validação loja) ...
+        return {'unlock_cost': float('inf'), 'unlock_items_details': []}
+    if not isinstance(tier_alvo, int) or tier_alvo <= 1:
+        return {'unlock_cost': 0, 'unlock_items_details': []}
+
+    total_unlock_cost_tickets = 0
+    final_unlock_items_details_list = [] # Lista para guardar dicts de detalhes
+    marked_item_names_set = set(marked_item_names)
+
+    log.debug(f"Calculando custo desbloqueio detalhado para Tier {tier_alvo} com marcados: {marked_item_names}")
+
+    for tier_a_comprar in range(1, tier_alvo):
+        log.debug(f" -> Analisando Tier {tier_a_comprar}...")
+
+        # 1. Itens pré-selecionados neste tier
+        preselected_in_tier_names = [
+            name for name in marked_item_names_set
+            if itens_loja.get(name, {}).get('tier') == tier_a_comprar
+        ]
+        num_preselected = len(preselected_in_tier_names)
+        log.debug(f"    Itens pré-selecionados: {num_preselected} ({preselected_in_tier_names})")
+
+        # Adiciona detalhes dos pré-selecionados à lista final
+        for name in preselected_in_tier_names:
+            data = itens_loja.get(name, {})
+            final_unlock_items_details_list.append({
+                'name': name,
+                'cost': data.get('cost'),
+                'currency': data.get('currency'),
+                'tier': tier_a_comprar,
+                'source': 'marked' # Indica que foi marcado pelo usuário
+            })
+
+        # 2. Calcula quantos itens AINDA são necessários
+        needed = max(0, 4 - num_preselected)
+        log.debug(f"    Itens adicionais necessários: {needed}")
+
+        # 3. Calcula custo (TICKETS) dos pré-selecionados
+        cost_of_preselected_tickets = sum(
+            itens_loja[name]['cost'] for name in preselected_in_tier_names
+            if itens_loja[name].get('currency') == 'ticket' and isinstance(itens_loja[name].get('cost'), (int, float))
+        )
+        log.debug(f"    Custo (Tickets) dos pré-selecionados: {cost_of_preselected_tickets}")
+
+        # 4. Encontra e calcula custo dos itens de ticket mais baratos para completar
+        cost_of_needed_tickets = 0
+        names_of_needed = []
+        if needed > 0:
+            candidates = []
+            for name, data in itens_loja.items():
+                if (data.get('tier') == tier_a_comprar and
+                    data.get('currency') == 'ticket' and
+                    isinstance(data.get('cost'), (int, float)) and data['cost'] > 0 and
+                    name not in marked_item_names_set): # Não pode estar pré-selecionado
+                      candidates.append({'name': name, 'cost': data['cost'], 'currency': 'ticket', 'tier': tier_a_comprar, 'source': 'calculated'})
+
+            log.debug(f"    Candidatos (ticket, não marcados): {len(candidates)}")
+            if len(candidates) < needed:
+                log.warning(f"Impossível desbloquear Tier {tier_a_comprar + 1}! Faltam itens de TICKET não marcados no Tier {tier_a_comprar}.")
+                return {'unlock_cost': float('inf'), 'unlock_items_details': []}
+
+            candidates.sort(key=lambda item: item['cost'])
+            cheapest_needed_details = candidates[:needed] # Lista de dicts
+            cost_of_needed_tickets = sum(item['cost'] for item in cheapest_needed_details)
+            names_of_needed = [item['name'] for item in cheapest_needed_details] # Pega só nomes se precisar, mas já temos detalhes
+            log.debug(f"    Itens mais baratos escolhidos para completar ({needed}): {names_of_needed} (Custo: {cost_of_needed_tickets})")
+
+            # Adiciona detalhes dos itens necessários à lista final
+            final_unlock_items_details_list.extend(cheapest_needed_details)
+
+        # 5. Soma os custos de tickets para este tier
+        cost_tier_atual_tickets = cost_of_preselected_tickets + cost_of_needed_tickets
+        total_unlock_cost_tickets += cost_tier_atual_tickets
+        log.debug(f"    Custo total de TICKETS adicionado para Tier {tier_a_comprar}: {cost_tier_atual_tickets}")
+
+    log.info(f"Custo total de DESBLOQUEIO (Tickets) para Tier {tier_alvo}: {total_unlock_cost_tickets}.")
+    # Ordena a lista final por tier e depois por nome para consistência (opcional)
+    final_unlock_items_details_list.sort(key=lambda x: (x.get('tier', 0), x.get('name', '')))
+
+    return {'unlock_cost': int(round(total_unlock_cost_tickets)), 'unlock_items_details': final_unlock_items_details_list}
+
+
+# Custo Total (MODIFICADO para retornar mais detalhes)
+def calcular_custo_total_item(nome_item_alvo, itens_loja, marked_item_names):
+    """
+    Calcula o custo total em TICKETS, custo base, custo de desbloqueio e
+    retorna lista detalhada de itens do caminho de desbloqueio.
+
+    Args:
+        nome_item_alvo (str): Nome do item.
+        itens_loja (dict): Dicionário de itens.
+        marked_item_names (list[str]): Lista de nomes marcados.
+
+    Returns:
+        dict: {
+            'total_cost': int | float('inf'),
+            'item_cost': int | None,
+            'unlock_cost': int | float('inf'),
+            'unlock_items_details': list[dict]
+        }
+    """
+    if not isinstance(itens_loja, dict) or not itens_loja: # ... validação loja ...
+        return {'total_cost': float('inf'), 'item_cost': None, 'unlock_cost': float('inf'), 'unlock_items_details': []}
+    item_data = itens_loja.get(nome_item_alvo)
+    if not item_data: # ... validação item existe ...
+        return {'total_cost': float('inf'), 'item_cost': None, 'unlock_cost': float('inf'), 'unlock_items_details': []}
+
+    item_cost = item_data.get('cost')
+    item_currency = item_data.get('currency')
+    item_tier = item_data.get('tier')
+    base_item_cost_tickets = 0 # Custo base do item alvo em tickets
+
+    # Validações do item alvo
+    if item_currency != 'ticket': # ... validação moeda ...
+         # Se o item alvo não for de ticket, o custo total é infinito para nosso cálculo
+         log.warning(f"Item alvo '{nome_item_alvo}' não é de ticket.")
+         return {'total_cost': float('inf'), 'item_cost': item_cost, 'unlock_cost': float('inf'), 'unlock_items_details': []}
+    if not isinstance(item_cost, (int, float)) or item_cost <= 0: # ... validação custo ...
+         return {'total_cost': float('inf'), 'item_cost': None, 'unlock_cost': float('inf'), 'unlock_items_details': []}
+    else:
+        base_item_cost_tickets = item_cost # Guarda o custo base se for de ticket
+
+    if not isinstance(item_tier, int) or item_tier < 1: # ... validação tier ...
+         return {'total_cost': float('inf'), 'item_cost': base_item_cost_tickets, 'unlock_cost': float('inf'), 'unlock_items_details': []}
+
+    log.debug(f"Calculando custo total detalhado para '{nome_item_alvo}' com marcados: {marked_item_names}")
+
+    # Calcula custo de desbloqueio E pega lista detalhada de itens do caminho
+    unlock_info = calcular_custo_minimo_desbloqueio(item_tier, itens_loja, marked_item_names)
+    custo_desbloqueio_tickets = unlock_info['unlock_cost']
+    unlock_items_details_list = unlock_info['unlock_items_details']
+
+    log.debug(f" -> Custo desbloqueio (Tickets): {custo_desbloqueio_tickets}. Itens caminho: {len(unlock_items_details_list)} itens.")
+
+    if custo_desbloqueio_tickets == float('inf'):
+        log.warning(f"Não é possível calcular custo total para '{nome_item_alvo}', tier não desbloqueável.")
+        # Retorna infinito, mas inclui custo base e detalhes parciais se houver
+        return {'total_cost': float('inf'), 'item_cost': base_item_cost_tickets, 'unlock_cost': float('inf'), 'unlock_items_details': unlock_items_details_list}
+
+    # Custo total em tickets = custo do próprio item + custo de tickets do desbloqueio
+    custo_total_tickets = custo_desbloqueio_tickets + base_item_cost_tickets
+
+    log.info(f"Custo total estimado (Tickets) para '{nome_item_alvo}': {custo_total_tickets} (Item: {base_item_cost_tickets}, Desbloq: {custo_desbloqueio_tickets})")
+    return {
+        'total_cost': int(round(custo_total_tickets)),
+        'item_cost': int(round(base_item_cost_tickets)),
+        'unlock_cost': int(round(custo_desbloqueio_tickets)),
+        'unlock_items_details': unlock_items_details_list # Lista detalhada
+    }
+    """
+    Calcula o custo total em TICKETS para adquirir um item, considerando itens
+    pré-marcados para o desbloqueio (Opção B). Retorna custo total e lista de
+    todos os itens usados no caminho.
+
+    Args:
+        nome_item_alvo (str): O nome do item desejado.
+        itens_loja (dict): Dicionário de itens.
+        marked_item_names (list[str]): Lista de nomes dos itens marcados.
 
     Returns:
         dict: {'cost': int | float('inf'), 'unlock_items': list[str]}
-              Retorna custo e lista de nomes dos itens usados para desbloqueio.
-              Retorna custo infinito e lista vazia se impossível.
     """
-    if not isinstance(itens_loja, dict) or not itens_loja:
-        log.error("calcular_custo_minimo_desbloqueio: Dicionário de itens da loja inválido ou vazio.")
-        return {'cost': float('inf'), 'unlock_items': []} # Retorna dict
+    if not isinstance(itens_loja, dict) or not itens_loja: # ... (validação loja) ...
+        return {'cost': float('inf'), 'unlock_items': []}
+    item_data = itens_loja.get(nome_item_alvo)
+    if not item_data: # ... (validação item existe) ...
+        return {'cost': float('inf'), 'unlock_items': []}
 
-    if not isinstance(tier_alvo, int) or tier_alvo <= 1:
-        return {'cost': 0, 'unlock_items': []} # Sem custo/itens para tier 1
+    item_cost = item_data.get('cost')
+    item_currency = item_data.get('currency')
+    item_tier = item_data.get('tier')
 
-    total_unlock_cost = 0
-    unlock_items_list = [] # Lista para guardar os nomes dos itens usados
-    log.debug(f"Calculando custo de desbloqueio para alcançar Tier {tier_alvo}")
+    # Validações do item alvo
+    if item_currency != 'ticket': # ... (validação moeda) ...
+        return {'cost': float('inf'), 'unlock_items': []}
+    if not isinstance(item_cost, (int, float)) or item_cost <= 0: # ... (validação custo) ...
+        return {'cost': float('inf'), 'unlock_items': []}
+    if not isinstance(item_tier, int) or item_tier < 1: # ... (validação tier) ...
+        return {'cost': float('inf'), 'unlock_items': []}
 
-    for tier_a_comprar in range(1, tier_alvo):
-        log.debug(f"  Analisando Tier {tier_a_comprar} para desbloquear Tier {tier_a_comprar + 1}...")
+    log.debug(f"Calculando custo total para '{nome_item_alvo}' com marcados: {marked_item_names}")
 
-        # 1. Filtra itens do tier atual que custam tickets, guardando (custo, nome)
-        itens_do_tier_ticket_with_names = []
-        for nome, dados in itens_loja.items():
-            if (dados.get('tier') == tier_a_comprar and
-                dados.get('currency') == 'ticket' and
-                isinstance(dados.get('cost'), (int, float)) and
-                dados['cost'] > 0):
-                    itens_do_tier_ticket_with_names.append((dados['cost'], nome)) # Guarda (custo, nome)
+    # Calcula o custo de desbloqueio (agora considera marcados) E pega a lista de itens
+    unlock_info = calcular_custo_minimo_desbloqueio(item_tier, itens_loja, marked_item_names)
+    custo_desbloqueio_tickets = unlock_info['cost']
+    unlock_items_list = unlock_info['unlock_items'] # Lista COMPLETA do caminho
 
-        log.debug(f"    Itens de Ticket (custo, nome) encontrados no Tier {tier_a_comprar}: {itens_do_tier_ticket_with_names}")
+    log.debug(f" -> Custo desbloqueio (Tickets): {custo_desbloqueio_tickets}. Itens caminho: {unlock_items_list}")
 
-        # 2. Verifica se há itens suficientes
-        if len(itens_do_tier_ticket_with_names) < 4:
-            log.warning(f"Impossível desbloquear Tier {tier_a_comprar + 1}! Menos de 4 itens de ticket encontrados no Tier {tier_a_comprar}.")
-            return {'cost': float('inf'), 'unlock_items': []} # Retorna dict
+    if custo_desbloqueio_tickets == float('inf'):
+        log.warning(f"Não é possível calcular custo total para '{nome_item_alvo}', tier não desbloqueável com itens marcados/disponíveis.")
+        return {'cost': float('inf'), 'unlock_items': []}
 
-        # 3. Ordena por custo (primeiro elemento da tupla) e pega os 4 mais baratos
-        itens_do_tier_ticket_with_names.sort(key=lambda item: item[0])
-        cheapest_four = itens_do_tier_ticket_with_names[:4]
+    # Custo total em tickets = custo do próprio item + custo de tickets do desbloqueio
+    custo_total_tickets = custo_desbloqueio_tickets + item_cost
 
-        # 4. Calcula custo do tier e adiciona nomes à lista
-        custo_tier_atual = sum(item[0] for item in cheapest_four) # Soma os custos (item[0])
-        nomes_tier_atual = [item[1] for item in cheapest_four] # Pega os nomes (item[1])
+    log.info(f"Custo total estimado (Tickets) para '{nome_item_alvo}': {custo_total_tickets}. Itens caminho: {unlock_items_list}")
+    # Retorna custo total e a lista de itens DO CAMINHO (para destaque no JS)
+    return {'cost': int(round(custo_total_tickets)), 'unlock_items': unlock_items_list}
 
-        log.debug(f"    Custo mínimo para comprar 4 itens do Tier {tier_a_comprar}: {custo_tier_atual} (Itens: {nomes_tier_atual})")
-        total_unlock_cost += custo_tier_atual
-        unlock_items_list.extend(nomes_tier_atual) # Adiciona os nomes à lista geral
+# --- Fim da Lógica de Projeções ---
 
-    log.info(f"Custo total mínimo de desbloqueio para Tier {tier_alvo}: {total_unlock_cost}. Itens usados: {unlock_items_list}")
-    # Retorna o dicionário com custo e a lista de nomes
-    return {'cost': int(round(total_unlock_cost)), 'unlock_items': unlock_items_list}
-
-
-# Custo Total (MODIFICADO para processar retorno de custo_minimo)
-def calcular_custo_total_item(nome_item_alvo, itens_loja):
     """
     Calcula o custo total em TICKETS para adquirir um item específico,
     incluindo o custo mínimo para desbloquear o tier necessário. Retorna também
