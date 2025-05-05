@@ -262,6 +262,16 @@ def index():
          analise_tokens_deliveries = None # Define como None se não foi processado
 
     log.info(f"Renderizando template index.html (Farm ID: {farm_id_submitted})")
+
+    # <<< ADICIONE ESTAS LINHAS DE DEBUG >>>
+    print("-" * 30)
+    print(f"DEBUG main.py -> farm_data type: {type(farm_data_display)}")
+    print(f"DEBUG main.py -> error_message: {error_message}")
+    print(f"DEBUG main.py -> npc_rates: {npc_completion_rates}")
+    print(f"DEBUG main.py -> analise_tokens: {analise_tokens_deliveries}")
+    print("-" * 30)
+    # --- FIM DEBUG ---
+
     # --- Renderiza o Template ---
     return render_template('index.html',
                            # Dados da Fazenda e Erros

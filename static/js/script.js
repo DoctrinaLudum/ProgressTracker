@@ -3,6 +3,16 @@ $(document).ready(function() {
     // --- Variável Global para Itens Marcados ---
     let markedUnlockItems = {};
 
+    // --- Manipulação da Visibilidade da Loja Sazonal ---
+    $('#analysisTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+        if (e.target.id === 'shop-tab') {
+            $('#results-area-shop').removeClass('d-none');
+        } else {
+            $('#results-area-shop').addClass('d-none');
+        }
+    });
+    // --- Fim Manipulação Visibilidade Loja ---
+    
     // --- Bloco Inicial: Formulário Principal e Tooltips Estáticos ---
     const farmForm = $('#farm-form');
     const loadingIndicator = $('#loading-indicator');
@@ -39,7 +49,7 @@ $(document).ready(function() {
     // --- FIM Handler Erro Imagem ---
 
     // --- Handler Checkbox: Marcar/Desmarcar Itens ---
-    $(document).on('change', '#analysisTabsContent .unlock-item-marker', function() {
+    $(document).on('change', '#results-area-shop .unlock-item-marker', function() { // MODIFICADO
         const checkbox = $(this);
         const itemName = checkbox.data('item-name');
         const isChecked = checkbox.prop('checked');
@@ -56,19 +66,19 @@ $(document).ready(function() {
     });
 
     // --- Handler Click Checkbox: Impedir Propagação ---
-    $(document).on('click', '#analysisTabsContent .unlock-item-marker', function(event) {
+    $(document).on('click', '#results-area-shop .unlock-item-marker', function(event) { // MODIFICADO
         event.stopPropagation(); // Impede que o clique no checkbox ative o clique do card
     });
 
 
     // --- Handler Click Item da Loja: Calcular Projeção e Detalhes ---
-    $(document).on('click', '#analysisTabsContent .item-selectable', function(event) {
+    $(document).on('click', '#results-area-shop .item-selectable', function(event) { // MODIFICADO
         event.preventDefault(); // Apenas para itens com '.item-selectable' (tickets)
 
         const $itemCard = $(this);
         const itemName = $itemCard.data('item-name');
-        const farmId = $('#results-area h2 span.badge').text().replace('ID:', '').trim();
-
+        const farmId = $('#results-area h2 span.badge, #results-area-shop h2 span.badge').text().replace('ID:', '').trim();
+        
         // --- Reset Visual ---
         $('.item-selectable').removeClass('border-primary shadow unlock-path-item').addClass('border-success');
         const resultsArea = $('#projection-results-area');
@@ -141,7 +151,7 @@ $(document).ready(function() {
                         if (unlockItems.length > 0) {
                             // console.log("Itens de desbloqueio para destacar:", unlockItems); // Log opcional
                             unlockItems.forEach(function(unlockItemName) {
-                                $('#analysisTabsContent .item-selectable[data-item-name="' + unlockItemName + '"]')
+                                $('#results-area-shop .item-selectable[data-item-name="' + unlockItemName + '"]') // MODIFICADO
                                     .addClass('unlock-path-item')
                                     .removeClass('border-success');
                             });
@@ -182,7 +192,7 @@ $(document).ready(function() {
         const simulatedRate = $('#simulated-rate-input').val();
         const currentItem = $('#simulator-section').data('current-item');
         const currentCost = $('#simulator-section').data('current-cost');
-        const farmId = $('#results-area h2 span.badge').text().replace('ID:', '').trim();
+        const farmId = $('#results-area h2 span.badge, #results-area-shop h2 span.badge').text().replace('ID:', '').trim();
         const simulationResultsArea = $('#simulation-results-area');
         const tokenName = $('.currency-ticket').first().text() || 'Tickets';
 
