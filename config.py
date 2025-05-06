@@ -5,7 +5,7 @@ APP_VERSION = "0.1.0"
 SEASON_END_DATE = "2025-07-31" # Exemplo: Final de Julho de 2025
 
 # Nome do Token Sazonal (Atualize a cada temporada)
-SEASONAL_TOKEN_NAME = "Genissed"
+SEASONAL_TOKEN_NAME = "Geniseed"
 
 # --- Itens da Loja Sazonal e Custos ---
 # Estrutura: "Nome Exato do Item": {"cost": VALOR, "currency": "ticket" ou "sfl", "tier": 1/2/3/4}
@@ -55,9 +55,6 @@ BASE_DELIVERY_REWARDS = {
 }
 
 # --- CONSTANTES PARA BÔNUS E TOKEN SAZONAL ---
-
-
-
 # Dicionário de Buffs Sazonais para Entregas
 # ##########################################################################
 # ## ATENÇÃO! VERIFIQUE OS NOMES DOS ITENS ABAIXO CONTRA O JSON REAL!   ##
@@ -78,3 +75,61 @@ SEASONAL_DELIVERY_BUFFS = {
     # Adicionar outros buffs futuros aqui
 }
 
+
+# --- CATEGORIAS PARA BOUNTIES (Mega Board - v2) ---
+
+# Lista de nomes de requisitos ('bounty.name') para Flores
+FLOWER_BOUNTY_NAMES = [
+    "Prism Petal", "Celestial Frostbloom", "Primula Enigma", "Red Daffodil",
+    "Yellow Daffodil", "Purple Daffodil", "White Daffodil", "Blue Daffodil",
+    "Red Lotus", "Yellow Lotus", "Purple Lotus", "White Lotus", "Blue Lotus",
+    "Red Edelweiss", "Yellow Edelweiss", "Purple Edelweiss", "White Edelweiss",
+    "Blue Edelweiss", "Red Gladiolus", "Yellow Gladiolus", "Purple Gladiolus",
+    "White Gladiolus", "Blue Gladiolus", "Red Lavender", "Yellow Lavender",
+    "Purple Lavender", "White Lavender", "Blue Lavender", "Red Clover",
+    "Yellow Clover", "Purple Clover", "White Clover", "Blue Clover",
+    "Red Pansy", "Yellow Pansy", "Purple Pansy", "White Pansy", "Blue Pansy", 
+    "Red Cosmos", "Yellow Cosmos", "Purple Cosmos", "White Cosmos", "Blue Cosmos",
+    "Red Balloon Flower", "Yellow Balloon Flower", "Purple Balloon Flower",
+    "White Balloon Flower", "Blue Balloon Flower",
+    "Red Carnation", "Yellow Carnation", "Purple Carnation", "White Carnation",
+    # Revise e adicione/remova conforme necessário...
+]
+
+# Lista de nomes de requisitos ('bounty.name') para Peixes
+FISH_BOUNTY_NAMES = [
+    "Anchovy", "Butterflyfish", "Blowfish", "Clownfish", "Sea Bass",
+    "Sea Horse", "Horse Mackerel", "Squid", "Red Snapper", "Moray Eel",
+    "Olive Flounder", "Napoleanfish", "Surgeonfish", "Zebra Turkeyfish",
+    "Ray", "Hammerhead Shark", "Tuna", "Mahi Mahi", "Blue Marlin",
+    "Oarfish", "Football fish", "Sunfish", "Coelacanth", "Whale Shark",
+    "Barred Knifejaw", "Sawshark", "White Shark", "Twilight Anglerfish",
+    "Starlight Tuna", "Radiant Ray", "Phantom Barracuda", "Gilded Swordfish",
+    "Crimson Carp", "Battle Fish", "Lemon Shark", "Longhorn Cowfish", "Jellyfish",
+    # Revise e adicione/remova conforme necessário...
+]
+
+# Lista de nomes de requisitos ('bounty.name') para Obsidianas
+OBSIDIAN_BOUNTY_NAMES = [
+    "Obsidian",
+    # Revise e adicione/remova conforme necessário...
+]
+
+# Lista de nomes de requisitos ('bounty.name') para Marks
+MARK_BOUNTY_NAMES = [
+    "Mark",
+    # Revise e adicione/remova conforme necessário...
+]
+
+# Ordem de exibição das categorias + a categoria "Exotic" para o resto
+# A categoria "Exotic" será tratada automaticamente no template
+BOUNTY_CATEGORY_ORDER = [
+    "Flores",
+    "Peixes",
+    "Exotic",# Catch-all para itens não listados acima
+    "Mark",
+    "Obsidiana"  
+]
+
+# Heurística para coluna Animais (mantida)
+ANIMAL_NAMES_HEURISTIC = ["Chicken", "Cow", "Sheep"]

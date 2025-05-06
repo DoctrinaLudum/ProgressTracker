@@ -232,14 +232,45 @@ def create_snapshot_if_needed(farm_id, all_live_npc_data):
 
             # Calcula custo se for token (reward vazio)
             if isinstance(reward_info, dict) and not reward_info:
-                if prices and delivery_info and isinstance(delivery_info.get('items'), dict):
-                    items_needed = delivery_info['items']
-                    if items_needed:
+                # --- CORREÇÃO EXPLÍCITA PARA PYLANCE (Linhas 174 e 182) ---
+
+                # 1. Garante que 'prices' é um dicionário válido antes de prosseguir
+                if isinstance(prices, dict) and prices:
+
+                    # 2. Garante que 'delivery_info' é um dicionário válido antes de prosseguir
+                    if isinstance(delivery_info, dict) and delivery_info:
+
+                        # 3. Tenta pegar 'items' de forma segura de 'delivery_info'
+                        items_dict = delivery_info.get('items')
+
+                        # 4. Verifica se 'items' foi encontrado, é um dicionário e não está vazio
+                        if isinstance(items_dict, dict) and items_dict:
+                            items_needed = items_dict # Agora é seguro usar
+                            try:
+                                # 5. Calcula o custo (agora é seguro usar prices.get)
+                                cost = sum((amount or 0) * prices.get(item, 0.0) for item, amount in items_needed.items())
+                                estimated_daily_cost = round(cost, 4)
+                                log.debug(f"Custo diário {npc_id}: {estimated_daily_cost:.4f} SFL")
+                            except Exception as e: # Use 'e' na mensagem de log
+                                log.exception(f"Erro calc custo {npc_id}: {e}")
+                        # else: # Se items_dict não for válido ou estiver vazio, não faz nada (custo continua 0.0)
+                    # else: # Se delivery_info não for válido, não faz nada
+                # else: # Se prices não for válido, não faz nada
+               # --- CORREÇÃO PARA PYLANCE ---
+                # 1. Verifica se 'prices' e 'delivery_info' existem (não são None/False)
+                if prices and delivery_info:
+                    # 2. Tenta pegar 'items' de forma segura
+                    items_dict = delivery_info.get('items')
+                    # 3. Verifica se 'items' foi encontrado E é um dicionário E não está vazio
+                    if isinstance(items_dict, dict) and items_dict:
+                        items_needed = items_dict # Agora seguro usar items_dict
                         try:
                             cost = sum((amount or 0) * prices.get(item, 0.0) for item, amount in items_needed.items())
                             estimated_daily_cost = round(cost, 4)
                             log.debug(f"Custo diário {npc_id}: {estimated_daily_cost:.4f} SFL")
-                        except Exception: log.exception(f"Erro calc custo {npc_id}")
+                        except Exception:
+                            log.exception(f"Erro calc custo {npc_id}")
+                # --- FIM DA CORREÇÃO ---
 
             # Salva
             if add_snapshot(farm_id_int, npc_id, today_date_str, delivery_count, skipped_count, estimated_daily_cost):
@@ -248,3 +279,67 @@ def create_snapshot_if_needed(farm_id, all_live_npc_data):
         else: log.warning(f"Dados não encontrados para {npc_id} (Farm {farm_id_int}).")
 
     log.info(f"Snapshot check/create concluído Farm {farm_id_int}. {snapshots_created_count} novos criados.")
+
+    # Busca todas as bounties da coleção
+
+def get_all_bounties():
+    """Busca todas as bounties da coleção 'bounties' no Firestore."""
+    if not db:
+        log.error("Firestore não inicializado. Impossível buscar bounties.")
+        return [] # Retorna lista vazia se o DB não estiver disponível
+
+    try:
+        # Substitua 'bounties' pelo nome exato da sua coleção no Firestore se for diferente
+        bounties_ref = db.collection('bounties')
+        docs = bounties_ref.stream() # Obtém um iterador de documentos
+
+        bounties = []
+        for doc in docs:
+            b_data = doc.to_dict()
+            if not b_data:
+                log.warning(f"Documento de bounty {doc.id} sem dados.")
+                continue
+
+            b_data['id'] = doc.id # Adiciona o ID do documento aos dados
+
+            # --- PARSING CORRETO DA RECOMPENSA (ESTRUTURA "items") ---
+            b_data['reward_amount'] = None
+            b_data['reward_currency'] = None # Mantemos este nome, pois o template espera ele
+
+            if 'items' in b_data and isinstance(b_data['items'], dict) and b_data['items']:
+                # Assume que há apenas um item de recompensa no dicionário 'items'
+                try:
+                    # Pega o primeiro (e único) nome de item (ex: "Geniseed")
+                    currency_name = next(iter(b_data['items']))
+                    # Pega a quantidade associada a esse nome
+                    amount_value = b_data['items'][currency_name]
+
+                    # Valida e atribui os valores
+                    if isinstance(amount_value, (int, float)) and amount_value >= 0:
+                        b_data['reward_amount'] = amount_value
+                        b_data['reward_currency'] = currency_name # Guarda o nome da moeda/item
+                    else:
+                        log.warning(f"Valor de recompensa inválido para {currency_name} na bounty {doc.id}: {amount_value}")
+
+                except StopIteration:
+                    log.warning(f"Dicionário 'items' vazio para bounty {doc.id}.")
+                except Exception as e:
+                    log.error(f"Erro ao processar 'items' para bounty {doc.id}: {e}")
+            # Se não houver 'items' ou for inválido, os valores permanecem None
+
+            # --- FIM DO PARSING CORRETO ---
+
+            # Garante que o campo 'name' existe para filtragem posterior
+            if 'name' not in b_data:
+                log.warning(f"Bounty {doc.id} não possui campo 'name'. Pulando.")
+                continue # Pula esta bounty se não tiver nome
+
+            bounties.append(b_data)
+
+        log.info(f"Buscadas {len(bounties)} bounties do Firestore.")
+        return bounties
+
+    except Exception as e:
+        # Usar log.exception para incluir traceback no log
+        log.exception(f"Erro ao buscar bounties do Firestore: {e}")
+        return [] # Retorna lista vazia em caso de erro

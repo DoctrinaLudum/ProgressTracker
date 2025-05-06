@@ -14,167 +14,271 @@ main.container {
 }
 
 /* ==========================================================================
-   2. CABEÇALHO (Header)
-   ========================================================================== */
+  2. CABEÇALHO (Header)
+  ========================================================================== */
 
 .app-header {
     background-color: #f8f9fa; /* Cor de fundo (Bootstrap 'light') */
-    /* border-bottom: 1px solid #dee2e6; */ /* A borda já vem das classes Bootstrap, mas pode controlar aqui */
 }
 
-/* Estilo para o link principal no cabeçalho (que contém ícone e título) */
 .app-header a.text-success {
-    /* A cor vem da classe text-success (#198754), mas pode sobrescrever: */
-    /* color: #198754; */
     text-decoration: none;
 }
 .app-header a.text-success:hover {
-    opacity: 0.9; /* Efeito suave no hover */
+    opacity: 0.9;
     text-decoration: none;
 }
 
-
 /* ==========================================================================
-   3. RODAPÉ (Footer)
-   ========================================================================== */
+  3. RODAPÉ (Footer)
+  ========================================================================== */
 
 .app-footer {
     font-size: 0.9em;
-    background-color: #f8f9fa; /* Cor de fundo (Bootstrap 'dark'). Mude aqui se desejar outra cor. */
-    color: #36393b;            /* Cor do texto geral (cinza claro/branco suave) */
+    background-color: #f8f9fa;
+    color: #36393b;
 }
 
-
-/* Links dentro do rodapé */
 .app-footer a {
-    color: #36393b; /* Cor branca para links, para destaque no fundo escuro */
+    color: #36393b;
     text-decoration: underline;
 }
 
 .app-footer a:hover {
-    color: #ffee00; /* Branco um pouco mais suave no hover */
+    color: #ffee00;
     text-decoration: none;
 }
 
-/* Ícone de coração no rodapé */
 .app-footer .bi-heart-fill {
     vertical-align: baseline;
 }
 
-
-
 /* ==========================================================================
-   4. ÁREA DE RESULTADOS E TABELAS (#results-area)
-   ========================================================================== */
+  4. ÁREA DE RESULTADOS E TABELAS (#results-area)
+  ========================================================================== */
 
-/* Padding geral nas células das tabelas dentro da área de resultados */
 #results-area .table > tbody > tr > td,
 #results-area .table > thead > tr > th {
     padding-top: 0.6rem;
     padding-bottom: 0.6rem;
-    vertical-align: middle; /* Alinha verticalmente o conteúdo da célula */
+    vertical-align: middle;
 }
 
-/* Arredondar o container da tabela (quando dentro de um card) */
 #results-area .card .table-responsive {
     border-radius: var(--bs-border-radius);
-    overflow: hidden; /* Esconde os cantos retos da tabela */
+    overflow: hidden;
 }
 
-/* Remove fundo do cabeçalho da tabela quando usar a classe .bg-success-subtle
-   para que a cor do thead (definida no html) prevaleça */
 #results-area .table > thead.bg-success-subtle > tr > th {
     background-color: transparent;
-    border-color: inherit; /* Herda a cor da borda do thead */
+    border-color: inherit;
 }
 
 /* ==========================================================================
-   5. INDICADORES E ELEMENTOS ESPECÍFICOS
-   ========================================================================== */
+  5. INDICADORES E ELEMENTOS ESPECÍFICOS
+  ========================================================================== */
 
-/* Estilo para o indicador 'N/D' (Não Disponível) */
 .na-indicator {
     cursor: help;
-    color: #6c757d; /* Cinza padrão do Bootstrap (muted) */
+    color: #6c757d;
     font-style: italic;
 }
 
-/* Estilo para o asterisco '*' de valor acumulado */
 .accumulation-indicator-star {
     cursor: help;
-    color: #fd7e14; /* Laranja padrão Bootstrap */
+    color: #fd7e14;
     font-weight: bold;
-    vertical-align: super; /* Alinha como superescrito */
-    font-size: 0.8em; /* Tamanho um pouco menor */
+    vertical-align: super;
+    font-size: 0.8em;
     margin-left: 2px;
 }
 
 /* ==========================================================================
-   6. ESTILOS DA LOJA SAZONAL (Exemplo de Seção)
-   ========================================================================== */
+  6. ESTILOS DA LOJA SAZONAL (Exemplo de Seção)
+  ========================================================================== */
 
-/* Cor para a moeda SFL (Flower) */
 .currency-sfl {
-    color: #E83E8C; /* Cor Rosa padrão do Bootstrap */
-    /* Ou use outro rosa: color: HotPink; color: #FF69B4; */
-    font-weight: bold; /* Opcional: Deixar em negrito */
+    color: #E83E8C;
+    font-weight: bold;
 }
 
-/* Cor para a moeda Ticket Sazonal (Genissed) */
 .currency-ticket {
-    color: #198754; /* Cor Verde padrão 'success' do Bootstrap */
-    /* Ou use outro verde: color: mediumseagreen; */
-    font-weight: bold; /* Opcional: Deixar em negrito */
+    color: #198754;
+    font-weight: bold;
 }
 
-/* Cor para a moeda Broken Pillar */
 .currency-broken_pillar {
-    color: #6c757d; /* Cor Cinza padrão 'secondary' do Bootstrap */
-    font-weight: bold; /* Opcional: Deixar em negrito */
+    color: #6c757d;
+    font-weight: bold;
 }
-
 
 /* ==========================================================================
-   7. ESTILOS DE DESTAQUE DOS ITENS USADOS NA PROJEÇÃO
-   ========================================================================== */
+  7. ESTILOS DE DESTAQUE DOS ITENS USADOS NA PROJEÇÃO
+  ========================================================================== */
 
-/* Estilo para destacar itens usados no caminho de desbloqueio mínimo */
 .unlock-path-item {
-    border: 2px solid #fd7e14; /* Laranja Bootstrap (ou outra cor) */
-    opacity: 0.85; /* Levemente transparente para diferenciar */
-    box-shadow: 0 0 8px rgba(253, 126, 20, 0.5); /* Sombra suave opcional */
-    background-color: #fff3e8; /* Fundo levemente alaranjado opcional */
+    border: 2px solid #fd7e14;
+    opacity: 0.85;
+    box-shadow: 0 0 8px rgba(253, 126, 20, 0.5);
+    background-color: #fff3e8;
 }
 
-/* Garante que o destaque de seleção principal prevaleça sobre o destaque do caminho */
 .item-selectable.border-primary.shadow {
-    border-color: #0d6efd !important; /* Cor primária do Bootstrap */
+    border-color: #0d6efd !important;
     opacity: 1 !important;
     box-shadow: 0 0.5rem 1rem rgba(0, 123, 255, 0.15) !important;
-    background-color: #ffffff !important; /* Fundo normal */
-}
-/* Estiliza o checkbox de marcação */
-.unlock-item-marker {
-    cursor: pointer;
-    /* Opcional: Aumentar um pouco para facilitar clique */
-    /* transform: scale(1.1); */
+    background-color: #ffffff !important;
 }
 
-/* Estilo para o card quando o item está marcado para desbloqueio */
+.unlock-item-marker {
+    cursor: pointer;
+}
+
 .item-card.marked-for-unlock {
-    background-color: #e0f2f7 !important; /* Um fundo azul claro suave */
-    /* ou outra indicação visual, como um ícone */
-    /* Exemplo com pseudo-elemento:
-    position: relative; */
+    background-color: #e0f2f7 !important;
 }
-/* Exemplo com pseudo-elemento para checkmark (requer ajuste de posicionamento)
-.item-card.marked-for-unlock::after {
-    content: '✔️';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    color: green;
-    font-size: 0.8em;
-    z-index: 11;
+
+/* ==========================================================================
+  8. ESTILOS DA ABA BOUNTIES (Estilo Loja)
+  ========================================================================== */
+
+/* Container Grid para os cards de bounties */
+.bounties-grid {
+    display: grid;
+    /* Ajuste minmax para largura mínima desejada antes de quebrar linha */
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); /* Ex: min 90px */
+    gap: 0.8rem;
+    padding: 0.5rem 0;
+    justify-content: center; /* Centraliza o grid todo se ele não ocupar a largura total */
 }
-*/
+
+/* Estilo Individual do Card de Bounty */
+.bounty-card {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+    height: 120px;  /* <<< ALTURA FIXA DO CARD (Ajuste conforme necessário) */
+    transition: box-shadow 0.2s ease-in-out;
+    width: 100%;    /* Ocupa a largura da coluna do grid */
+    overflow: hidden; /* Esconde conteúdo que transbordar */
+}
+
+.bounty-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    /* transform: scale(1.03); /* Removido scale para evitar problemas de layout no hover */
+}
+
+/* Corpo do Card de Bounty (para controlar padding e conteúdo flex) */
+.bounty-card .card-body {
+   padding: 0.5rem; /* Padding interno */
+   display: flex;
+   flex-direction: column;
+   align-items: center; /* Centraliza itens horizontalmente */
+   justify-content: center; /* Tenta centralizar conteúdo verticalmente */
+   flex-grow: 1; /* Ocupa o espaço vertical disponível dentro do card */
+   overflow: hidden; /* Esconde overflow dentro do body também */
+}
+
+/* Imagem do Requisito - AGORA COM TAMANHO FIXO */
+.bounty-req-image {
+    width: 40px;         /* <<< LARGURA FIXA DA IMAGEM (Ajuste se desejar) */
+    height: 40px;        /* <<< ALTURA FIXA DA IMAGEM (Ajuste se desejar) */
+    object-fit: contain;   /* Preenche o espaço, mantendo proporção e cortando excesso */
+    display: block;      /* Mantém como bloco */
+    margin-left: auto;   /* Centraliza horizontalmente */
+    margin-right: auto;
+    margin-bottom: 0.5rem; /* Espaço abaixo */
+    background-color: #f8f9fa; /* Fundo para imagens transparentes/não carregadas */
+    border-radius: 4px;       /* Cantos arredondados */
+    flex-shrink: 0; /* Impede que encolha em contextos flex */
+}
+
+/* Título do Card (usando .bounty-req-name do seu HTML) */
+.bounty-card .bounty-req-name {
+    font-size: 0.8rem;   /* Tamanho da fonte */
+    font-weight: 600;    /* Peso da fonte */
+    color: #333;        /* Cor do texto */
+    margin-top: 0;       /* Sem margem superior */
+    margin-bottom: 0.25rem; /* Pequena margem inferior */
+    width: 100%;         /* Ocupa largura total para centralizar */
+    text-align: center;
+    line-height: 1.2;    /* Altura da linha */
+    /* Tratamento de texto longo (reticências em 2 linhas) */
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Limita a 2 linhas */
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    min-height: calc(2 * 1.2em); /* Garante espaço vertical para 2 linhas */
+    flex-shrink: 0; /* Impede que encolha */
+}
+
+/* Parágrafo da Recompensa */
+.bounty-reward {
+    font-size: 0.75rem; /* Fonte um pouco menor */
+    color: #e67e22;     /* Laranja */
+    font-weight: 600;
+    margin-top: auto;    /* Empurra para a parte inferior */
+    margin-bottom: 0;    /* Sem margem inferior */
+    width: 100%;         /* Ocupa largura total para centralizar */
+    text-align: center;
+    /* Tratamento texto longo (1 linha com reticências) */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0; /* Impede que encolha */
+}
+
+/* Descrição do Card (se você adicionar uma) - Mantido */
+.bounty-description {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    margin-bottom: 1rem;
+    flex-grow: 1; /* Ocupa espaço vertical (se houver) */
+    line-height: 1.4;
+    overflow: hidden; /* Esconde se for muito longa */
+}
+
+/* Detalhes (Status - se você adicionar) - Mantido e com tratamento de overflow */
+.bounty-details {
+    font-size: 0.8rem;
+    color: #95a5a6;
+    margin-top: auto; /* Empurra para baixo */
+    margin-bottom: 0.5rem;
+    width: 100%; /* Para text-align center */
+    text-align: center;
+    white-space: nowrap; /* Impede quebra de linha */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0; /* Impede que encolha */
+}
+
+/* Estilos específicos para Status (mantidos como antes) */
+.status-active, .status-available {
+    color: #2ecc71; /* Verde */
+    font-weight: bold;
+}
+.status-progress, .status-pending {
+    color: #f39c12; /* Amarelo/Laranja */
+    font-weight: bold;
+}
+.status-completed {
+    color: #95a5a6; /* Cinza */
+    font-weight: bold;
+}
+
+/* Ações (Botões - se você adicionar) - Mantido */
+.bounty-actions {
+    padding-top: 0.5rem;
+    border-top: 1px solid #f0f0f0; /* Linha separadora opcional */
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center; /* Centraliza botões */
+    margin-top: auto; /* Garante que fique na base */
+    flex-shrink: 0; /* Impede que encolha */
+}
+
+/* --- FIM DOS ESTILOS DA ABA BOUNTIES --- */

@@ -96,6 +96,7 @@ def index():
     analise_tokens_deliveries = None # Para resultados da análise histórica
     total_delivery_bonus = 0
     active_bonus_details = {}
+    bounties_data = {}
     # Lê do config ou usa um default
     seasonal_token_name = getattr(config, 'SEASONAL_TOKEN_NAME', 'Ticket Sazonal')
     app_version = getattr(config, 'APP_VERSION', 'N/A')
@@ -122,7 +123,7 @@ def index():
                  return render_template('index.html', error_message=error_message, farm_id_submitted=farm_id_submitted,
                                         token_name=seasonal_token_name, shop_items_all=itens_loja_completo,
                                         avg_daily_rate=taxa_media_diaria_placeholder, current_year=current_year,
-                                        app_version=app_version, config=config) # Passa config para acesso no template
+                                        app_version=app_version, config=config, bounties_data=bounties_data) # Passa config para acesso no template
 
             # 1. Busca dados da API
             api_response_data, error_message_api = get_farm_data_full(farm_id_submitted)
@@ -132,6 +133,7 @@ def index():
             if api_response_data and 'farm' in api_response_data:
                 farm_data_display = api_response_data['farm']
                 npc_data_completo = farm_data_display.get('npcs', {})
+                bounties_data = farm_data_display.get('bounties', {})
 
                 # 3. Calcula Bônus de Entrega
                 try:
@@ -261,6 +263,10 @@ def index():
     if 'analise_tokens_deliveries' not in locals():
          analise_tokens_deliveries = None # Define como None se não foi processado
 
+     # Garante que bounties_data existe mesmo para GET
+    if not isinstance(bounties_data, dict): # Segurança extra
+        bounties_data = {}
+
     log.info(f"Renderizando template index.html (Farm ID: {farm_id_submitted})")
 
     # <<< ADICIONE ESTAS LINHAS DE DEBUG >>>
@@ -286,6 +292,7 @@ def index():
                            live_cost_sfl=round(live_cost_sfl, 4),
                            delivery_bonus=total_delivery_bonus,
                            active_bonus_details=active_bonus_details,
+                           bounties_data=bounties_data,
                            # Dados Gerais e de Configuração
                            token_name=seasonal_token_name,
                            config=config, # Passa config para acesso a constantes no template

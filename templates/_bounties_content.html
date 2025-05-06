@@ -1,7 +1,176 @@
 {# templates/_bounties_content.html #}
-{# Conteúdo da aba "Tarefas (Bounties)" #}
+{# Conteúdo da aba "Tarefas (Bounties)" - Coluna Mega Board Categorizada - Versão com Caminhos de Imagem Dinâmicos #}
 
-<div class="alert alert-info mt-3" role="alert">
-    A análise de Tarefas (Bounties / Chores) será adicionada em breve!
-  </div>
-  {# Futuramente, o conteúdo da análise de Bounties viria aqui #}
+{# --- Funções Macro (Helpers) --- #}
+{% macro render_bounty_card(bounty, config, category) %}
+    {# --- Mapeamento de Categoria para Nome da Pasta --- #}
+    {# Este dicionário ajuda a converter o nome da categoria (usado na lógica) para o nome exato da pasta (usado no caminho da imagem) #}
+    {# Adicione ou ajuste conforme sua estrutura de pastas real #}
+    {% set category_folder_map = {
+        'Flores': 'flowers',
+        'Peixes': 'fishs',        
+        'Obsidiana': 'obsidiana',
+        'Mark': 'marks',
+        'Exotic': 'exotic',
+        'Animais': 'animals'      
+    } %}
+
+     {# --- Variáveis do Card --- #}
+     {% set requirement_name = bounty.get('name', 'N/A') | title %} {# Mantém para exibição se necessário #}
+     {% set bounty_name_raw = bounty.get('name', 'unknown') %} {# Ex: "Red Lavender" #}
+ 
+     {# --- Prepara o nome base para o ARQUIVO de imagem --- #}
+     {# 1. Converte nome para minúsculas #}
+     {# 2. Substitui espaços por underscores #}
+     {% set filename_base = bounty_name_raw | lower | replace(' ', '_') %} {# Resultado para "Red Lavender" será "red_lavender" #}
+ 
+     {# Obtém o nome da pasta a partir do mapeamento, usando 'unknown' como fallback #}
+     {% set folder_name = category_folder_map.get(category, 'unknown_category') %}
+ 
+     {# Constrói o caminho relativo dinamicamente com o nome base AJUSTADO #}
+     {% set img_path_relative = 'images/bounty_requirements/' + folder_name + '/' + filename_base + '.png' %} {# Resultado: images/bounty_requirements/flowers/red_lavender.png #}
+ 
+     {% set placeholder_path = url_for('static', filename='images/bounty_requirements/placeholder.png') %}
+     {% set token_name = config.SEASONAL_TOKEN_NAME %}
+     {% set reward_amount = bounty.get('items', {}).get(token_name, 0) %}
+ 
+     {# O restante da div do card continua igual... #}
+     <div class="card bounty-card">
+         <div class="card-body text-center d-flex flex-column p-1">
+              {# A tag img agora usa img_path_relative que foi calculado corretamente #}
+             <img src="{{ url_for('static', filename=img_path_relative) }}"
+                  alt="{{ requirement_name }}" {# O alt pode continuar usando o nome original capitalizado #}
+                  class="bounty-req-image mb-2"
+                  onerror="this.onerror=null; this.src='{{ placeholder_path }}';"
+                  loading="lazy">
+             {# Exibe o nome original no card #}
+             <h6 class="card-title text-center small bounty-req-name mb-1">{{ bounty_name_raw }}</h6>
+                {% if bounty.reward_amount and bounty.reward_currency %}
+                <p class="bounty-reward text-center small mb-1"> {# Centralizado, pequeno, margem pequena #}
+                    {{ bounty.reward_amount }} {{ bounty.reward_currency | title }} {# <<< EXIBIÇÃO CORRIGIDA #}
+
+                </p>
+                {% endif %}
+            </div>
+     </div>
+{% endmacro %}
+{# --- Fim das Macros --- #}
+
+{# ----- Lógica Principal (Alterações nas chamadas da macro) ----- #}
+
+{% set token_name = config.SEASONAL_TOKEN_NAME %}
+{% set requests_list = bounties_data.get('requests', []) %}
+
+{# 1. Filtra tarefas por recompensa em token (Sem alterações aqui) #}
+{% set token_reward_bounties = [] %}
+{% if requests_list is iterable %}
+    {% for bounty in requests_list %}
+        {% if bounty is mapping and bounty.get('items') is mapping and token_name in bounty.get('items', {}) %}
+            {% set _ = token_reward_bounties.append(bounty) %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+{# 2. Separa Animais vs Mega Board (Sem alterações aqui) #}
+{% set mega_board_bounties = [] %}
+{% set animal_bounties = [] %}
+{% set animal_names_heuristic = config.ANIMAL_NAMES_HEURISTIC | default(["Chicken", "Cow", "Sheep"]) %}
+{% for bounty in token_reward_bounties %}
+    {% set req_name = bounty.get('name') %}
+    {% if req_name in animal_names_heuristic %}
+        {% set _ = animal_bounties.append(bounty) %}
+    {% else %}
+        {% set _ = mega_board_bounties.append(bounty) %}
+    {% endif %}
+{% endfor %}
+
+{# 3. Prepara dicionário para guardar bounties por categoria do Mega Board (Sem alterações aqui) #}
+{% set categorized_mega_bounties = {} %}
+{% set category_order_list = config.BOUNTY_CATEGORY_ORDER | default(["Flores", "Peixes", "Obsidiana", "Mark", "Exotic"]) %}
+{% for category in category_order_list %}
+    {% set _ = categorized_mega_bounties.update({category: []}) %}
+{% endfor %}
+{% if 'Exotic' not in categorized_mega_bounties %}
+    {% set _ = categorized_mega_bounties.update({'Exotic': []}) %}
+{% endif %}
+
+{# 4. Categoriza as Bounties do Mega Board (Sem alterações aqui) #}
+{% set flower_names = config.FLOWER_BOUNTY_NAMES | default([]) %}
+{% set fish_names = config.FISH_BOUNTY_NAMES | default([]) %}
+{% set obsidian_names = config.OBSIDIAN_BOUNTY_NAMES | default([]) %}
+{% set mark_names = config.MARK_BOUNTY_NAMES | default([]) %}
+{# Adicione acesso a outras listas aqui se definiu mais no config #}
+
+{% for bounty in mega_board_bounties %}
+    {% set req_name = bounty.get('name') %}
+    {% set target_category = 'Exotic' %} {# Default to Exotic #}
+
+    {% if req_name in flower_names %}
+        {% set target_category = 'Flores' %}
+    {% elif req_name in fish_names %}
+        {% set target_category = 'Peixes' %}
+    {% elif req_name in obsidian_names %}
+        {% set target_category = 'Obsidiana' %}
+    {% elif req_name in mark_names %}
+        {% set target_category = 'Mark' %}
+    {# Adicione elif para outras listas aqui #}
+    {% endif %}
+
+    {# Append logic (Sem alterações aqui) #}
+    {% if target_category in categorized_mega_bounties %}
+        {% set _ = categorized_mega_bounties[target_category].append(bounty) %}
+    {% else %}
+         {% set _ = categorized_mega_bounties['Exotic'].append(bounty) %}
+    {% endif %}
+{% endfor %}
+
+{# 5. Exibe as colunas e os cards categorizados (ALTERAÇÕES NAS CHAMADAS DA MACRO) #}
+{% if token_reward_bounties %}
+    <div class="row g-3">
+        {# --- Coluna Esquerda: Mega Bounty Board (CATEGORIZADO) --- #}
+        <div class="col-md-6 mb-3">
+            <h4 class="text-primary mb-3"><i class="bi bi-clipboard-data me-2"></i>Mega Bounty Board</h4>
+            {% for category_name in category_order_list %}
+                {% set current_category_bounties = categorized_mega_bounties.get(category_name, []) %}
+                {% if current_category_bounties %}
+                    <h6 class="text-muted border-bottom pb-1 mb-2 mt-3">{{ category_name }}</h6>
+                    <div class="bounties-grid">
+                        {% for bounty in current_category_bounties %}
+                            {# *** ALTERAÇÃO AQUI: Passa category_name para a macro *** #}
+                            <div class="col">{{ render_bounty_card(bounty, config, category_name) }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+            {# Mensagem se não houver NADA no mega board #}
+            {% if not mega_board_bounties %}
+                 <div class="alert alert-light small" role="alert">Nenhuma tarefa do Mega Board com recompensa em {{ token_name }} encontrada.</div>
+            {% endif %}
+        </div>
+        {# --- Fim Coluna Esquerda --- #}
+
+        {# --- Coluna Direita: Bounties (Animais) --- #}
+        <div class="col-md-6 mb-3">
+             <h4 class="text-success mb-3"><i class="bi bi-piggy-bank me-2"></i>Bounties (Animais)</h4>
+             {% if animal_bounties %}
+                 <div class="bounties-grid">
+                    {% for bounty in animal_bounties %}
+                        {# *** ALTERAÇÃO AQUI: Passa 'Animais' como categoria para a macro *** #}
+                        <div class="col">{{ render_bounty_card(bounty, config, 'Animais') }}</div>
+                    {% endfor %}
+                 </div>
+             {% else %}
+                 <div class="alert alert-light small" role="alert">Nenhuma tarefa de animal com recompensa em {{ token_name }} encontrada.</div>
+             {% endif %}
+        </div>
+        {# --- Fim Coluna Direita --- #}
+    </div> {# --- Fim Container Principal (row) --- #}
+
+{% else %}
+    {# Mensagem se nenhuma tarefa com recompensa em token foi encontrada (Sem alterações aqui) #}
+    {% if farm_id_submitted %}
+        <div class="alert alert-light" role="alert">Nenhuma tarefa com recompensa em {{ token_name }} encontrada para esta fazenda.</div>
+    {% else %}
+         <div class="alert alert-secondary" role="alert">Busque um Farm ID para ver as tarefas (bounties).</div>
+    {% endif %}
+{% endif %} {# Fim if token_reward_bounties #}
