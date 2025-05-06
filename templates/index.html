@@ -94,30 +94,35 @@
     <div>   
 
       {# --- NOVO CARD PARA IDENTIFICAÇÃO E SALDOS --- #}
-      <div class="card mb-3 shadow-sm"> {# Margem abaixo e sombra suave #}
-          <div class="card-body">
-              {# Título H2 dentro do card #}
-              <h2 class="mb-3 fw-normal card-title"> {# Adicionada classe card-title #}
-                  Fazenda
-                  {% if farm_data.username %}
-                      <strong class="text-success">{{ farm_data.username }}</strong>
-                  {% else %}
-                      <em>(Nome não disponível)</em>
-                  {% endif %}
-                  <span class="badge bg-secondary fw-normal ms-2">ID: {{ farm_id_submitted }}</span>
-              </h2>
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                {# Título H2 transformado em container flex #}
+                <div class="d-flex justify-content-between align-items-center mb-3"> {# Nova div para o título e imagem #}
+                    <h2 class="mb-0 fw-normal card-title"> {# Removido mb-3 daqui, já que a div pai tem #}
+                        Fazenda
+                        {% if farm_data.username %}
+                            <strong class="text-success">{{ farm_data.username }}</strong>
+                        {% else %}
+                            <em>(Nome não disponível)</em>
+                        {% endif %}
+                        <span class="badge bg-secondary fw-normal ms-2">ID: {{ farm_id_submitted }}</span>
+                    </h2>
+                    {% if bumpkin_image_url %}
+                        <img src="{{ bumpkin_image_url }}" alt="Bumpkin" style="width: 150px; height: auto; border-radius: 5px; margin-left: 15px;"> {# Aumentei um pouco e adicionei margem esquerda #}
+                    {% endif %}
+                </div>
 
-              {# Saldos DENTRO do mesmo card, usando list-group-flush #}
-              <ul class="list-group list-group-flush">
-                  <li class="list-group-item ps-0"> {# ps-0 remove padding esquerdo do item #}
-                      <strong>Moedas (Coins):</strong> {% set coins_val = farm_data.get('coins') %}{% if coins_val is not none %}{{ "%.2f"|format(coins_val|float) }}{% else %}N/A{% endif %}
-                  </li>
-                  <li class="list-group-item ps-0"> {# ps-0 remove padding esquerdo do item #}
-                      <strong>Saldo SFL (Balance):</strong> {{ farm_data.get('balance', 'N/A') }}
-                  </li>
-              </ul>
-          </div> {# Fim do card-body #}
-      </div>
+                {# Saldos DENTRO do mesmo card, usando list-group-flush #}
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item ps-0">
+                        <strong>Moedas (Coins):</strong> {% set coins_val = farm_data.get('coins') %}{% if coins_val is not none %}{{ "%.2f"|format(coins_val|float) }}{% else %}N/A{% endif %}
+                    </li>
+                    <li class="list-group-item ps-0">
+                        <strong>Saldo SFL (Balance):</strong> {{ farm_data.get('balance', 'N/A') }}
+                    </li>
+                </ul>
+            </div> {# Fim do card-body #}
+        </div>
 
             {# Bloco de Atividade Recente (Alerta "Nenhuma nova..." REMOVIDO) #}
             {% if (live_completions is defined and live_completions > 0) or (live_tokens is defined and live_tokens > 0) or (live_cost_sfl is defined and live_cost_sfl > 0) %}

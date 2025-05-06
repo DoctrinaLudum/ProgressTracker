@@ -7,6 +7,8 @@ from flask import Flask, render_template, request, jsonify
 import config # Importa config inteiro
 import database_utils # Funções de DB (Firestore)
 import analysis # Funções de análise e cálculo
+import json
+from bumpkin_utils import load_item_ids, gerar_url_imagem_bumpkin
 
 # Configuração do Logging
 # (Use INFO para produção, DEBUG para mais detalhes durante desenvolvimento)
@@ -15,6 +17,8 @@ log = logging.getLogger(__name__)
 
 # Inicialização do App Flask
 app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_item_ids(BASE_DIR)
 
 # Verificação Inicial do Banco de Dados
 if not database_utils.db:
@@ -97,6 +101,7 @@ def index():
     total_delivery_bonus = 0
     active_bonus_details = {}
     bounties_data = {}
+    bumpkin_image_url = None
     # Lê do config ou usa um default
     seasonal_token_name = getattr(config, 'SEASONAL_TOKEN_NAME', 'Ticket Sazonal')
     app_version = getattr(config, 'APP_VERSION', 'N/A')
@@ -134,7 +139,24 @@ def index():
                 farm_data_display = api_response_data['farm']
                 npc_data_completo = farm_data_display.get('npcs', {})
                 bounties_data = farm_data_display.get('bounties', {})
-
+                bumpkin_data_from_api = farm_data_display.get("bumpkin")
+                
+                # ---> INÍCIO DA LÓGICA DO BUMPKIN CORRIGIDA <---
+              
+                if bumpkin_data_from_api and isinstance(bumpkin_data_from_api, dict):
+                    equipped_items = bumpkin_data_from_api.get("equipped")
+                    if equipped_items and isinstance(equipped_items, dict):
+                        # Chama a função para gerar a URL da imagem do Bumpkin
+                        bumpkin_image_url = gerar_url_imagem_bumpkin(equipped_items)
+                        log.info(f"URL da imagem do Bumpkin gerada para {farm_id_submitted}: {bumpkin_image_url}")
+                    else:
+                        # Log se 'equipped' não for encontrado ou não for um dicionário dentro de 'bumpkin_data_from_api'
+                        log.warning(f"Dados de 'equipped' não encontrados ou em formato incorreto dentro de 'bumpkin_data_from_api' para Farm ID {farm_id_submitted}. Conteúdo de equipped_items: {equipped_items}")
+                else:
+                    # Log se 'bumpkin' (nível superior) não for encontrado ou não for um dicionário em 'farm_data_display'
+                    log.warning(f"Dados de 'bumpkin' não encontrados ou em formato incorreto em 'farm_data_display' para Farm ID {farm_id_submitted}. Conteúdo de bumpkin_data_from_api: {bumpkin_data_from_api}")
+                # ---> FIM DA LÓGICA DO BUMPKIN CORRIGIDA <--
+                                    
                 # 3. Calcula Bônus de Entrega
                 try:
                     bonus_info = analysis.calculate_delivery_bonus(farm_data_display, config.SEASONAL_DELIVERY_BUFFS)
@@ -300,7 +322,8 @@ def index():
                            shop_items_ticket=itens_loja_tickets, # Apenas itens de ticket (se necessário)
                            avg_daily_rate=taxa_media_diaria_placeholder, # Placeholder inicial
                            current_year=current_year,
-                           app_version=app_version
+                           app_version=app_version,
+                           bumpkin_image_url=bumpkin_image_url,
                            )
 
 
