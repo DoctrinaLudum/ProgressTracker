@@ -1,30 +1,32 @@
-# database_utils.py (Versão Firestore Completa)
+# database_utils.py (Refatorado para Snapshot por Fazenda/Dia com Mapa de NPCs)
 import os
 import logging
 import time
 import requests
 import config # Importa suas configurações (BASE_DELIVERY_REWARDS)
-from datetime import datetime # Import necessário
+from datetime import datetime, timedelta # timedelta pode ser útil
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
+# Import específico para timestamp do servidor
+from google.cloud.firestore_v1 import SERVER_TIMESTAMP 
 
 # --- Configuração ---
 log = logging.getLogger(__name__)
 
 # --- Inicialização do Cliente Firestore ---
 try:
-    # Tenta inicializar. Requer credenciais via GOOGLE_APPLICATION_CREDENTIALS
     db = firestore.Client()
     log.info(f"Cliente Firestore inicializado para projeto: {db.project}")
 except Exception as e:
     log.exception("Falha CRÍTICA ao inicializar cliente Firestore! Verifique as credenciais.")
-    db = None # Marca como não inicializado
+    db = None
 
 # --- Nomes das Coleções ---
-SNAPSHOTS_COLLECTION = "daily_snapshots_v2"
+SNAPSHOTS_COLLECTION = "daily_snapshots_v2" 
 NPC_STATE_COLLECTION = "delivery_npc_state_v2"
+BOUNTIES_COLLECTION = "bounties"
 
-# --- Função de Preços ---
+# ---> get_sfl_world_prices <---
 price_cache = {
     "data": None, "last_fetch_time": 0, "cache_duration_seconds": 3600 # 1 hora
 }
@@ -44,7 +46,8 @@ def get_sfl_world_prices():
         response = requests.get(api_url, timeout=10)
         response.raise_for_status()
         full_response_data = response.json()
-        price_data_dict = full_response_data.get('data', {}).get('p2p') # Acessa o dict correto
+        price_data = full_response_data.get('data', {})
+        price_data_dict = price_data.get('p2p')
 
         if isinstance(price_data_dict, dict):
             for item, price in price_data_dict.items():
@@ -58,7 +61,7 @@ def get_sfl_world_prices():
             log.info(f"Preços sfl.world obtidos/cacheados: {len(prices_float)} itens.")
             return prices_float
         else:
-            log.error("Estrutura inesperada API preços (sem data.p2p).")
+            log.error("Estrutura inesperada API preços (sem data ou data.p2p).")
             return price_cache["data"] if price_cache["data"] else None
 
     except requests.exceptions.Timeout:
@@ -70,276 +73,462 @@ def get_sfl_world_prices():
     except Exception as e:
         log.exception("Erro inesperado ao buscar/processar preços sfl.world.")
         return None
+# ---> FIM get_sfl_world_prices <---
 
-# --- Funções de Interação com Firestore ---
+# --- Funções de Estado de NPC (sem alteração significativa) ---
 
-def add_snapshot(farm_id, npc_id, snapshot_date, delivery_count, skip_count, estimated_daily_cost):
-    """Adiciona um documento de snapshot à coleção Firestore."""
-    if not db: log.error("DB não init - add_snapshot"); return False
-    try:
-        farm_id_int = int(farm_id) # Garante int
-        doc_id = f"{farm_id_int}_{npc_id}_{snapshot_date}" # Usa farm_id_int
-        doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(doc_id)
-        snapshot_data = {
-            'farm_id': farm_id_int, 'npc_id': npc_id, 'snapshot_date': snapshot_date,
-            'deliveryCount': delivery_count, 'skipCount': skip_count,
-            'estimated_daily_cost_sfl': estimated_daily_cost,
-            'timestamp': firestore.SERVER_TIMESTAMP
-        }
-        doc_ref.set(snapshot_data) # Cria ou sobrescreve
-        log.info(f"Snapshot salvo: {doc_id} (D:{delivery_count}, S:{skip_count}, C:~{estimated_daily_cost:.2f})")
-        return True
-    except Exception: log.exception(f"Erro ao salvar snapshot {farm_id}_{npc_id}_{snapshot_date}"); return False
-
-def get_snapshot_from_db(farm_id, npc_id, target_date_str):
-    """Busca um snapshot específico no Firestore pelo ID composto."""
-    if not db: log.error("DB não init - get_snapshot"); return None
-    try:
-        farm_id_int = int(farm_id)
-        doc_id = f"{farm_id_int}_{npc_id}_{target_date_str}"
-        doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(doc_id)
-        snapshot = doc_ref.get()
-        if snapshot.exists: return snapshot.to_dict()
-        else: log.warning(f"Snapshot NÃO encontrado: {doc_id}"); return None
-    except Exception: log.exception(f"Erro ao buscar snapshot {farm_id}_{npc_id}_{target_date_str}"); return None
-
+# ---> get_npc_state (MODIFICADA para Mapa) <---
 def get_npc_state(farm_id, npc_name):
-    """Busca o último estado registrado para um NPC de uma fazenda."""
-    if not db: log.error("DB não init - get_npc_state"); return None
+    """
+    Busca o último estado registrado para um NPC específico DENTRO do documento da fazenda.
+    """
+    if not db: 
+        log.error("DB não inicializado - get_npc_state (mapa) falhou.")
+        return None
     try:
         farm_id_int = int(farm_id)
-        doc_id = f"{farm_id_int}_{npc_name}"
-        doc_ref = db.collection(NPC_STATE_COLLECTION).document(doc_id)
-        state = doc_ref.get()
-        if state.exists: return state.to_dict()
-        else: return None
-    except Exception: log.exception(f"Erro ao buscar estado {farm_id}_{npc_name}"); return None
+        # Documento é identificado apenas pelo farm_id
+        farm_doc_ref = db.collection(NPC_STATE_COLLECTION).document(str(farm_id_int))
+        
+        farm_doc_snapshot = farm_doc_ref.get()
+        
+        if farm_doc_snapshot.exists: 
+            farm_data = farm_doc_snapshot.to_dict()
+            if farm_data: # Garante que to_dict() não é None
+                npc_states_map = farm_data.get('npc_states', {})
+                npc_specific_state = npc_states_map.get(npc_name) # Pega o estado do NPC do mapa
+                
+                if npc_specific_state:
+                    # log.debug(f"Estado encontrado para NPC '{npc_name}' na Farm {farm_id_int}: {npc_specific_state}")
+                    return npc_specific_state
+                else:
+                    log.debug(f"Nenhum estado anterior encontrado para NPC '{npc_name}' no mapa da Farm {farm_id_int}.")
+                    return None # NPC não tem estado salvo no mapa
+            else:
+                log.warning(f"Documento da Farm {farm_id_int} para estado existe, mas to_dict() é None.")
+                return None
+        else: 
+            log.debug(f"Nenhum documento de estado encontrado para Farm {farm_id_int}.")
+            return None # Documento da fazenda não existe
+    except ValueError:
+        log.error(f"Farm ID inválido '{farm_id}' ao buscar estado de NPC (mapa).")
+        return None
+    except Exception as e: 
+        log.exception(f"Erro ao buscar estado para NPC {npc_name} na Farm {farm_id} (mapa): {e}")
+        return None
+# ---> FIM get_npc_state <---
 
+
+
+# ---> update_npc_state (MODIFICADA para Mapa) <---
 def update_npc_state(farm_id, npc_name, delivery_count, skipped_count, completed_at):
-    """Cria ou atualiza o estado de um NPC para uma fazenda no Firestore."""
-    if not db: log.error("DB não init - update_npc_state"); return False
+    """
+    Cria ou atualiza o estado de um NPC específico DENTRO do documento da fazenda.
+    """
+    if not db: 
+        log.error("DB não inicializado - update_npc_state (mapa) falhou.")
+        return False
     try:
         farm_id_int = int(farm_id)
-        doc_id = f"{farm_id_int}_{npc_name}"
-        doc_ref = db.collection(NPC_STATE_COLLECTION).document(doc_id)
-        state_data = {
-            'farm_id': farm_id_int, 'npc_name': npc_name,
-            'last_delivery_count': delivery_count or 0,
-            'last_skipped_count': skipped_count or 0,
-            'last_completed_at': str(completed_at) if completed_at else None,
-            'updated_at': firestore.SERVER_TIMESTAMP
-        }
-        doc_ref.set(state_data, merge=True) # merge=True atualiza ou cria
-        log.debug(f"Estado salvo/atualizado: {doc_id}")
-        return True
-    except Exception: log.exception(f"Erro ao salvar/atualizar estado {farm_id}_{npc_name}"); return False
+        # Documento agora é identificado apenas pelo farm_id
+        farm_doc_ref = db.collection(NPC_STATE_COLLECTION).document(str(farm_id_int))
+        
+        # Prepara os dados apenas para o NPC específico
+        # Usaremos notação de ponto para atualizar o campo dentro do mapa 'npc_states'
+        npc_state_field_path = f"npc_states.{npc_name}" # Ex: npc_states.bert
 
+        npc_specific_data = {
+            'last_delivery_count': delivery_count if delivery_count is not None else 0,
+            'last_skipped_count': skipped_count if skipped_count is not None else 0,
+            'last_completed_at': str(completed_at) if completed_at is not None else None,
+            'state_updated_at': SERVER_TIMESTAMP # Timestamp da atualização deste NPC
+        }
+
+        # Dados a serem atualizados/mesclados no documento da fazenda
+        update_data = {
+            npc_state_field_path: npc_specific_data,
+            'farm_id': farm_id_int, # Garante que farm_id exista no documento
+            'last_global_update': SERVER_TIMESTAMP # Timestamp da última modificação no documento
+        }
+        
+        # Usamos set com merge=True para criar o doc se não existir ou atualizar os campos
+        # A notação de ponto garante que apenas o subcampo do NPC seja atualizado no mapa
+        farm_doc_ref.set(update_data, merge=True) 
+        
+        log.debug(f"Estado para NPC '{npc_name}' atualizado no documento da Farm {farm_id_int}.")
+        return True
+    except ValueError:
+        log.error(f"Farm ID inválido '{farm_id}' ao atualizar estado de NPC (mapa).")
+        return False
+    except Exception as e: 
+        log.exception(f"Erro ao salvar/atualizar estado para NPC {npc_name} na Farm {farm_id} (mapa): {e}")
+        return False
+# ---> FIM update_npc_state <---
+
+
+# --- Funções de Snapshot (Refatoradas para Mapa por Fazenda/Dia) ---
+
+# ---> check_snapshot_exists (MODIFICADA) <---
+def check_snapshot_exists(farm_id, target_date_str):
+    """Verifica se um snapshot (documento da fazenda) já existe para um farm/data."""
+    if not db: 
+        log.error("DB não inicializado - check_snapshot falhou.")
+        return False 
+    try:
+        farm_id_int = int(farm_id)
+        # O ID do documento agora é apenas farm_data
+        doc_id = f"{farm_id_int}_{target_date_str}"
+        doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(doc_id)
+        log.debug(f"Verificando existência do snapshot: {doc_id}")
+        exists = doc_ref.get().exists 
+        log.debug(f"Snapshot {doc_id} existe? {exists}")
+        return exists
+    except ValueError:
+         log.error(f"Argumento inválido ao verificar snapshot: farm='{farm_id}', date='{target_date_str}'.")
+         return False
+    except Exception as e: 
+        log.exception(f"Erro verificar snapshot {farm_id}_{target_date_str}: {e}")
+        return False 
+# ---> FIM check_snapshot_exists <---
+
+# ---> create_snapshot_if_needed (VERSÃO FINAL LIMPA) <---
+def create_snapshot_if_needed(farm_id, all_general_npc_data, active_delivery_orders):
+    """
+    Verifica/cria UM snapshot diário POR FAZENDA contendo um mapa de NPCs relevantes,
+    com dados otimizados (contadores e custo SFL da entrega ativa).
+    'all_general_npc_data' refere-se à seção 'npcs' da API.
+    'active_delivery_orders' refere-se à lista 'delivery.orders' da API.
+    """
+    if not db: 
+        log.error("DB não inicializado - create_snapshot falhou.")
+        return
+    if not all_general_npc_data or not isinstance(all_general_npc_data, dict): 
+        log.warning("Dados gerais de NPC (all_general_npc_data) ausentes ou inválidos para create_snapshot.")
+        return
+    # active_delivery_orders pode ser uma lista vazia, o que é válido.
+
+    try: 
+        farm_id_int = int(farm_id)
+    except (ValueError, TypeError): 
+        log.error(f"Farm ID inválido '{farm_id}' em create_snapshot.")
+        return
+
+    today_date_str = datetime.now().strftime('%Y-%m-%d')
+    
+    if check_snapshot_exists(farm_id_int, today_date_str):
+        return 
+
+    log.info(f"Criando snapshot único para Farm {farm_id_int} no dia {today_date_str}...")
+    snapshot_doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(f"{farm_id_int}_{today_date_str}")
+    snapshot_data_to_save = {
+        'farm_id': farm_id_int, 'date': today_date_str, 
+        'created_at': SERVER_TIMESTAMP, 'npcs': {} 
+    }
+    prices = get_sfl_world_prices() or {} 
+    if not prices: log.warning("Não foi possível obter a lista de PREÇOS para o cálculo de custo do snapshot.")
+    
+    npcs_to_process_config = config.BASE_DELIVERY_REWARDS.keys() 
+    npcs_added_count = 0 
+
+    if not npcs_to_process_config:
+        log.warning("Nenhum NPC relevante definido em config.BASE_DELIVERY_REWARDS.")
+    else:
+        for npc_id_from_config in npcs_to_process_config:
+            # Pega os dados GERAIS do NPC (para deliveryCount, skipCount)
+            general_npc_data = all_general_npc_data.get(npc_id_from_config)
+            
+            if general_npc_data and isinstance(general_npc_data, dict):
+                delivery_count = general_npc_data.get('deliveryCount')
+                skipped_count = general_npc_data.get('skippedCount', 0) 
+                if skipped_count is None: skipped_count = 0
+                
+                if delivery_count is None: 
+                    log.warning(f"Contador 'deliveryCount' ausente para NPC '{npc_id_from_config}'. Não incluído.")
+                    continue 
+
+                estimated_daily_cost = 0.0
+                
+                # Procura a ORDEM DE ENTREGA ATIVA para este NPC
+                active_order_for_npc = None
+                if isinstance(active_delivery_orders, list):
+                    for order in active_delivery_orders:
+                        if isinstance(order, dict) and order.get('from') == npc_id_from_config:
+                            active_order_for_npc = order
+                            break # Encontrou a ordem ativa para este NPC
+                
+                if active_order_for_npc:
+                    reward_info = active_order_for_npc.get('reward') 
+                    # Se reward_info for None ou dict vazio, é recompensa em token
+                    if reward_info is None or (isinstance(reward_info, dict) and not reward_info): 
+                        log.debug(f"NPC {npc_id_from_config}: Recompensa da ordem ativa (None ou Vazia), calculando custo SFL...")
+                        # 'delivery_info' para itens agora é o próprio 'active_order_for_npc'
+                        # pois 'items' está diretamente sob ele
+                        delivery_items_info = active_order_for_npc # O objeto da ordem contém 'items'
+                        
+                        if prices and isinstance(delivery_items_info, dict) and delivery_items_info:
+                            items_dict = delivery_items_info.get('items')
+                            if isinstance(items_dict, dict) and items_dict:
+                                current_cost_sum = 0.0
+                                try:
+                                    for item, amount in items_dict.items():
+                                        item_amount = amount or 0
+                                        item_price = prices.get(item) 
+                                        if item_price is None:
+                                            log.warning(f"Preço NÃO encontrado para item: '{item}' (NPC: {npc_id_from_config}). Usando preço 0.")
+                                            item_price = 0.0
+                                        else:
+                                            try: item_price = float(item_price) 
+                                            except (ValueError, TypeError):
+                                                log.warning(f"Valor de preço inválido ('{item_price}') para item '{item}' (NPC: {npc_id_from_config}). Usando preço 0.")
+                                                item_price = 0.0
+                                        current_cost_sum += item_amount * item_price
+                                    estimated_daily_cost = round(current_cost_sum, 4)
+                                    log.info(f"CUSTO CALCULADO para NPC {npc_id_from_config}: {estimated_daily_cost:.4f} SFL")
+                                except Exception as e_cost: 
+                                    log.exception(f"Erro crítico calculando custo SFL para snapshot NPC {npc_id_from_config}: {e_cost}")
+                            else:
+                                log.debug(f"NPC {npc_id_from_config}: Dicionário 'items' da entrega ativa inválido ou vazio. Custo SFL será 0.")
+                        else:
+                            log.debug(f"NPC {npc_id_from_config}: Dicionário 'prices' ou dados da entrega ativa ('items') inválido/vazio. Custo SFL será 0.")
+                    # else: A recompensa da ordem ativa não é None nem vazia (ex: SFL direto, não calcula custo de itens)
+                else:
+                    log.debug(f"NPC {npc_id_from_config}: Nenhuma ordem de entrega ativa encontrada para cálculo de custo.")
+
+                snapshot_data_to_save['npcs'][npc_id_from_config] = {
+                    'deliveryCount': delivery_count,
+                    'skipCount': skipped_count,
+                    'estimated_daily_cost_sfl': estimated_daily_cost 
+                }
+                npcs_added_count += 1
+            else: 
+                log.warning(f"Dados GERAIS da API não encontrados ou inválidos para NPC '{npc_id_from_config}'.")
+
+    try:
+        snapshot_doc_ref.set(snapshot_data_to_save)
+        if npcs_added_count > 0:
+            log.info(f"Snapshot único criado com sucesso para Farm {farm_id_int} dia {today_date_str} com {npcs_added_count} NPCs.")
+        else:
+             log.info(f"Snapshot único criado para Farm {farm_id_int} dia {today_date_str} (sem dados de NPC para salvar).")
+    except Exception as e:
+        log.exception(f"Erro ao salvar snapshot único para Farm {farm_id_int} dia {today_date_str}: {e}")
+# ---> FIM create_snapshot_if_needed <---
+
+
+# ---> get_snapshot_from_db (MODIFICADA) <---
+def get_snapshot_from_db(farm_id, npc_id, target_date_str):
+    """
+    Busca os dados de um NPC específico de dentro do snapshot diário da fazenda (estrutura de mapa).
+    Retorna o dicionário de dados do NPC ou None se não encontrado.
+    """
+    if not db: 
+        log.error("DB não inicializado - get_snapshot (mapa) falhou.")
+        return None
+    try:
+        farm_id_int = int(farm_id)
+        doc_id = f"{farm_id_int}_{target_date_str}"
+        doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(doc_id)
+        
+        snapshot = doc_ref.get()
+        if snapshot.exists: 
+            farm_day_data = snapshot.to_dict()
+            # Adiciona verificação se farm_day_data não é None
+            if farm_day_data:
+                npcs_map = farm_day_data.get('npcs', {}) 
+                npc_data = npcs_map.get(npc_id) 
+                if npc_data:
+                    return npc_data 
+                else:
+                    log.warning(f"NPC '{npc_id}' não encontrado no mapa 'npcs' do snapshot {doc_id}.")
+                    return None
+            else:
+                log.warning(f"Snapshot {doc_id} existe mas .to_dict() retornou None.")
+                return None
+        else: 
+            log.warning(f"Snapshot NÃO encontrado para o dia/fazenda: {doc_id}")
+            return None
+    except ValueError:
+         log.error(f"Farm ID ou data inválida ao buscar snapshot (mapa): farm='{farm_id}', date='{target_date_str}'.")
+         return None
+    except Exception as e: 
+        log.exception(f"Erro ao buscar snapshot (mapa) {farm_id}_{target_date_str} para NPC {npc_id}: {e}")
+        return None
+# ---> FIM get_snapshot_from_db <---
+
+# ---> get_daily_costs_for_npc (MODIFICADA) <---
 def get_daily_costs_for_npc(farm_id, npc_id, start_date_str, end_date_str):
-    """Busca lista de custos diários para um NPC/Farm/Período."""
-    if not db: log.error("DB não init - get_daily_costs"); return []
+    """
+    Busca lista de custos diários para um NPC específico, lendo do mapa
+    nos snapshots diários da fazenda no período.
+    """
+    if not db: 
+        log.error("DB não inicializado - get_daily_costs (mapa) falhou.")
+        return []
     costs = []
     try:
         farm_id_int = int(farm_id)
         snapshots_ref = db.collection(SNAPSHOTS_COLLECTION)
+        
         query = snapshots_ref.where(filter=FieldFilter("farm_id", "==", farm_id_int)) \
-                             .where(filter=FieldFilter("npc_id", "==", npc_id)) \
-                             .where(filter=FieldFilter("snapshot_date", ">=", start_date_str)) \
-                             .where(filter=FieldFilter("snapshot_date", "<=", end_date_str))
+                             .where(filter=FieldFilter("date", ">=", start_date_str)) \
+                             .where(filter=FieldFilter("date", "<=", end_date_str)) \
+                             .order_by("date")
+                             
         docs = query.stream()
+        processed_dates = set() 
         for doc in docs:
-            data = doc.to_dict()
-            cost = data.get('estimated_daily_cost_sfl')
-            if cost is not None:
-                try: costs.append(float(cost))
-                except (ValueError, TypeError): log.warning(f"Custo inválido no snapshot {doc.id}: {cost}")
-        log.debug(f"Custos diários para {farm_id}/{npc_id} ({start_date_str} a {end_date_str}): {len(costs)} regs.")
-    except Exception: log.exception(f"Erro buscar custos diários {farm_id}/{npc_id}"); return []
-    return costs
+            doc_data = doc.to_dict()
+            doc_date = doc_data.get('date') if doc_data else None
+            
+            if not doc_date or doc_date in processed_dates:
+                continue
+            processed_dates.add(doc_date)
 
-# --- FUNÇÃO PARA BUSCAR PRIMEIRA E ÚLTIMA DATA (ADICIONADA) ---
+            if doc_data: # Garante que doc_data não é None
+                npcs_map = doc_data.get('npcs', {})
+                npc_data = npcs_map.get(npc_id)
+                
+                if npc_data:
+                    cost = npc_data.get('estimated_daily_cost_sfl') 
+                    if cost is not None:
+                        try: 
+                            costs.append(float(cost))
+                        except (ValueError, TypeError): 
+                            log.warning(f"Custo inválido no snapshot {doc.id} para NPC {npc_id}: {cost}")
+                 
+        log.debug(f"Custos diários (mapa) para {farm_id}/{npc_id} ({start_date_str} a {end_date_str}): {len(costs)} registros encontrados.")
+    except ValueError:
+        log.error(f"Argumento inválido ao buscar custos diários (mapa): farm='{farm_id}', npc='{npc_id}', start='{start_date_str}', end='{end_date_str}'.")
+        return []
+    except Exception as e: 
+        log.exception(f"Erro buscar custos diários (mapa) {farm_id}/{npc_id}: {e}")
+        return []
+    return costs
+# ---> FIM get_daily_costs_for_npc <---
+
+# ---> get_first_and_last_snapshot_date <---
 def get_first_and_last_snapshot_date(farm_id):
     """Encontra a data do primeiro e do último snapshot registrado para um farm_id."""
-    if not db: log.error("DB não init - get_first_last_date"); return None, None
+    if not db: 
+        log.error("DB não inicializado - get_first_last_date falhou.")
+        return None, None
     try:
         farm_id_int = int(farm_id)
         snapshots_ref = db.collection(SNAPSHOTS_COLLECTION)
         first_date_str = None
         last_date_str = None
+        
+        date_field_to_order = "date" 
 
-        # Query para a primeira data
         query_first = snapshots_ref.where(filter=FieldFilter("farm_id", "==", farm_id_int)) \
-                                   .order_by("snapshot_date", direction=firestore.Query.ASCENDING) \
+                                   .order_by(date_field_to_order, direction=firestore.Query.ASCENDING) \
                                    .limit(1)
-        first_docs = list(query_first.stream())
-        if first_docs: first_date_str = first_docs[0].to_dict().get("snapshot_date")
+        first_docs = list(query_first.stream()) 
+        if first_docs and first_docs[0].exists: # Verifica se o documento existe
+             doc_data = first_docs[0].to_dict()
+             if doc_data: # Verifica se to_dict() não é None
+                 first_date_str = doc_data.get(date_field_to_order)
 
-        # Query para a última data (apenas se a primeira foi encontrada)
         if first_date_str:
             query_last = snapshots_ref.where(filter=FieldFilter("farm_id", "==", farm_id_int)) \
-                                      .order_by("snapshot_date", direction=firestore.Query.DESCENDING) \
+                                      .order_by(date_field_to_order, direction=firestore.Query.DESCENDING) \
                                       .limit(1)
             last_docs = list(query_last.stream())
-            if last_docs: last_date_str = last_docs[0].to_dict().get("snapshot_date")
+            if last_docs and last_docs[0].exists: # Verifica se o documento existe
+                doc_data = last_docs[0].to_dict()
+                if doc_data: # Verifica se to_dict() não é None
+                    last_date_str = doc_data.get(date_field_to_order)
 
-        log.info(f"Datas para Farm {farm_id_int}: Primeira='{first_date_str}', Última='{last_date_str}'")
+        log.info(f"Datas de snapshot (mapa) para Farm {farm_id_int}: Primeira='{first_date_str}', Última='{last_date_str}'")
         return first_date_str, last_date_str
-    except ValueError: log.error(f"Farm ID inválido '{farm_id}' ao buscar datas."); return None, None
-    except Exception: log.exception(f"Erro buscar primeira/última data snapshot para Farm {farm_id}"); return None, None
+        
+    except ValueError: 
+        log.error(f"Farm ID inválido '{farm_id}' ao buscar datas.")
+        return None, None
+    except Exception as e: 
+        log.exception(f"Erro buscar primeira/última data snapshot para Farm {farm_id}: {e}")
+        return None, None
+# ---> FIM get_first_and_last_snapshot_date <---
 
-# --- FUNÇÕES PARA "COLETA NA VISITA" ---
-def check_snapshot_exists(farm_id, npc_id, target_date_str):
-    """Verifica se um snapshot já existe para um farm/npc/data."""
-    if not db: log.error("DB não init - check_snapshot"); return False
-    try:
-        doc_id = f"{int(farm_id)}_{npc_id}_{target_date_str}"
-        doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(doc_id)
-        return doc_ref.get(field_paths=['farm_id']).exists
-    except Exception: log.exception(f"Erro verificar snapshot {farm_id}_{npc_id}_{target_date_str}"); return False
 
-def create_snapshot_if_needed(farm_id, all_live_npc_data):
-    """Verifica/cria snapshot de HOJE para NPCs relevantes usando dados ao vivo."""
-    if not db: log.error("DB não init - create_snapshot"); return
-    if not all_live_npc_data: log.warning("Sem dados NPC para create_snapshot"); return
-
-    try: farm_id_int = int(farm_id)
-    except (ValueError, TypeError): log.error(f"Farm ID inválido '{farm_id}' em create_snapshot"); return
-
-    today_date_str = datetime.now().strftime('%Y-%m-%d')
-    log.info(f"Verificando/Criando snapshots para Farm {farm_id_int} data {today_date_str}...")
-    prices = get_sfl_world_prices() or {} # Busca preços (ou usa vazio)
-    npcs_to_process_config = config.BASE_DELIVERY_REWARDS
-    snapshots_created_count = 0
-
-    for npc_id in npcs_to_process_config.keys():
-        if check_snapshot_exists(farm_id_int, npc_id, today_date_str):
-            log.debug(f"Snapshot {farm_id_int}_{npc_id}_{today_date_str} já existe.")
-            continue
-
-        log.info(f"Criando snapshot para {farm_id_int}_{npc_id}_{today_date_str}...")
-        npc_api_data = all_live_npc_data.get(npc_id)
-        estimated_daily_cost = 0.0
-
-        if npc_api_data and isinstance(npc_api_data, dict):
-            delivery_count = npc_api_data.get('deliveryCount')
-            skipped_count = npc_api_data.get('skippedCount')
-            # Validação mínima
-            if delivery_count is None or skipped_count is None:
-                log.warning(f"Contagem ausente para {npc_id}. Snapshot não salvo.")
-                continue
-
-            delivery_info = npc_api_data.get('delivery')
-            reward_info = npc_api_data.get('reward')
-
-            # Calcula custo se for token (reward vazio)
-            if isinstance(reward_info, dict) and not reward_info:
-                # --- CORREÇÃO EXPLÍCITA PARA PYLANCE (Linhas 174 e 182) ---
-
-                # 1. Garante que 'prices' é um dicionário válido antes de prosseguir
-                if isinstance(prices, dict) and prices:
-
-                    # 2. Garante que 'delivery_info' é um dicionário válido antes de prosseguir
-                    if isinstance(delivery_info, dict) and delivery_info:
-
-                        # 3. Tenta pegar 'items' de forma segura de 'delivery_info'
-                        items_dict = delivery_info.get('items')
-
-                        # 4. Verifica se 'items' foi encontrado, é um dicionário e não está vazio
-                        if isinstance(items_dict, dict) and items_dict:
-                            items_needed = items_dict # Agora é seguro usar
-                            try:
-                                # 5. Calcula o custo (agora é seguro usar prices.get)
-                                cost = sum((amount or 0) * prices.get(item, 0.0) for item, amount in items_needed.items())
-                                estimated_daily_cost = round(cost, 4)
-                                log.debug(f"Custo diário {npc_id}: {estimated_daily_cost:.4f} SFL")
-                            except Exception as e: # Use 'e' na mensagem de log
-                                log.exception(f"Erro calc custo {npc_id}: {e}")
-                        # else: # Se items_dict não for válido ou estiver vazio, não faz nada (custo continua 0.0)
-                    # else: # Se delivery_info não for válido, não faz nada
-                # else: # Se prices não for válido, não faz nada
-               # --- CORREÇÃO PARA PYLANCE ---
-                # 1. Verifica se 'prices' e 'delivery_info' existem (não são None/False)
-                if prices and delivery_info:
-                    # 2. Tenta pegar 'items' de forma segura
-                    items_dict = delivery_info.get('items')
-                    # 3. Verifica se 'items' foi encontrado E é um dicionário E não está vazio
-                    if isinstance(items_dict, dict) and items_dict:
-                        items_needed = items_dict # Agora seguro usar items_dict
-                        try:
-                            cost = sum((amount or 0) * prices.get(item, 0.0) for item, amount in items_needed.items())
-                            estimated_daily_cost = round(cost, 4)
-                            log.debug(f"Custo diário {npc_id}: {estimated_daily_cost:.4f} SFL")
-                        except Exception:
-                            log.exception(f"Erro calc custo {npc_id}")
-                # --- FIM DA CORREÇÃO ---
-
-            # Salva
-            if add_snapshot(farm_id_int, npc_id, today_date_str, delivery_count, skipped_count, estimated_daily_cost):
-                 snapshots_created_count += 1
-            else: log.error(f"Falha salvar snapshot {farm_id_int}_{npc_id}_{today_date_str}")
-        else: log.warning(f"Dados não encontrados para {npc_id} (Farm {farm_id_int}).")
-
-    log.info(f"Snapshot check/create concluído Farm {farm_id_int}. {snapshots_created_count} novos criados.")
-
-    # Busca todas as bounties da coleção
-
+# ---> get_all_bounties <---
+# (Sem alterações necessárias aqui para a mudança de snapshot)
 def get_all_bounties():
     """Busca todas as bounties da coleção 'bounties' no Firestore."""
+    # (Código como na sua versão anterior)
     if not db:
         log.error("Firestore não inicializado. Impossível buscar bounties.")
-        return [] # Retorna lista vazia se o DB não estiver disponível
-
+        return [] 
+    # ... (resto do código da função como estava) ...
     try:
-        # Substitua 'bounties' pelo nome exato da sua coleção no Firestore se for diferente
-        bounties_ref = db.collection('bounties')
-        docs = bounties_ref.stream() # Obtém um iterador de documentos
-
+        bounties_ref = db.collection(BOUNTIES_COLLECTION)
+        docs = bounties_ref.stream() 
         bounties = []
         for doc in docs:
             b_data = doc.to_dict()
             if not b_data:
                 log.warning(f"Documento de bounty {doc.id} sem dados.")
                 continue
-
-            b_data['id'] = doc.id # Adiciona o ID do documento aos dados
-
-            # --- PARSING CORRETO DA RECOMPENSA (ESTRUTURA "items") ---
+            b_data['id'] = doc.id 
             b_data['reward_amount'] = None
-            b_data['reward_currency'] = None # Mantemos este nome, pois o template espera ele
-
+            b_data['reward_currency'] = None
             if 'items' in b_data and isinstance(b_data['items'], dict) and b_data['items']:
-                # Assume que há apenas um item de recompensa no dicionário 'items'
                 try:
-                    # Pega o primeiro (e único) nome de item (ex: "Geniseed")
                     currency_name = next(iter(b_data['items']))
-                    # Pega a quantidade associada a esse nome
                     amount_value = b_data['items'][currency_name]
-
-                    # Valida e atribui os valores
                     if isinstance(amount_value, (int, float)) and amount_value >= 0:
                         b_data['reward_amount'] = amount_value
-                        b_data['reward_currency'] = currency_name # Guarda o nome da moeda/item
-                    else:
-                        log.warning(f"Valor de recompensa inválido para {currency_name} na bounty {doc.id}: {amount_value}")
-
-                except StopIteration:
-                    log.warning(f"Dicionário 'items' vazio para bounty {doc.id}.")
-                except Exception as e:
-                    log.error(f"Erro ao processar 'items' para bounty {doc.id}: {e}")
-            # Se não houver 'items' ou for inválido, os valores permanecem None
-
-            # --- FIM DO PARSING CORRETO ---
-
-            # Garante que o campo 'name' existe para filtragem posterior
+                        b_data['reward_currency'] = currency_name
+                    else: log.warning(f"Valor recompensa inválido {currency_name} na bounty {doc.id}: {amount_value}")
+                except StopIteration: log.warning(f"Dict 'items' vazio bounty {doc.id}.")
+                except Exception as e: log.error(f"Erro processar 'items' bounty {doc.id}: {e}")
             if 'name' not in b_data:
-                log.warning(f"Bounty {doc.id} não possui campo 'name'. Pulando.")
-                continue # Pula esta bounty se não tiver nome
-
+                log.warning(f"Bounty {doc.id} sem campo 'name'. Pulando.")
+                continue 
             bounties.append(b_data)
-
         log.info(f"Buscadas {len(bounties)} bounties do Firestore.")
         return bounties
-
     except Exception as e:
-        # Usar log.exception para incluir traceback no log
         log.exception(f"Erro ao buscar bounties do Firestore: {e}")
-        return [] # Retorna lista vazia em caso de erro
+        return []
+# ---> FIM get_all_bounties <---
+
+# ---> get_active_bounties <---
+# (Sem alterações necessárias aqui para a mudança de snapshot)
+def get_active_bounties():
+    """Busca apenas bounties marcadas como ativas no Firestore."""
+    # (Código como na sua versão anterior)
+    if not db:
+        log.error("Firestore não inicializado. Impossível buscar bounties ativas.")
+        return []
+    # ... (resto do código da função como estava) ...
+    try:
+        bounties_ref = db.collection(BOUNTIES_COLLECTION)
+        query = bounties_ref.where(filter=FieldFilter("active", "==", True))
+        docs = query.stream()
+        active_bounties = []
+        for doc in docs:
+            b_data = doc.to_dict()
+            if not b_data: continue
+            b_data['id'] = doc.id
+            b_data['reward_amount'] = None
+            b_data['reward_currency'] = None
+            if 'items' in b_data and isinstance(b_data['items'], dict) and b_data['items']:
+                try:
+                    currency_name = next(iter(b_data['items']))
+                    amount_value = b_data['items'][currency_name]
+                    if isinstance(amount_value, (int, float)) and amount_value >= 0:
+                        b_data['reward_amount'] = amount_value
+                        b_data['reward_currency'] = currency_name
+                    else: log.warning(f"Valor recompensa inválido {currency_name} na bounty ativa {doc.id}: {amount_value}")
+                except StopIteration: log.warning(f"Dict 'items' vazio bounty ativa {doc.id}.")
+                except Exception as e: log.error(f"Erro processar 'items' bounty ativa {doc.id}: {e}")
+            if 'name' not in b_data:
+                 log.warning(f"Bounty ativa {doc.id} sem campo 'name'. Pulando.")
+                 continue
+            active_bounties.append(b_data)
+        log.info(f"Buscadas {len(active_bounties)} bounties ATIVAS do Firestore.")
+        return active_bounties
+    except Exception as e:
+        log.exception(f"Erro ao buscar bounties ATIVAS do Firestore: {e}")
+        return []
+# ---> FIM get_active_bounties <---
