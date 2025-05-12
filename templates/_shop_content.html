@@ -109,21 +109,89 @@
                    <i class="bi bi-calculator me-1"></i> Projeção para Item Selecionado
                 </div>
                 <div class="card-body">
-                    {# Área para exibir a Taxa Média Diária #}
-                    <div class="alert alert-info small p-2 mb-3">
-                        <i class="bi bi-speedometer2 me-1"></i> Taxa Diária (Est*):
-                        <strong> {% if avg_daily_rate is not none and avg_daily_rate > 0 %}{{ "%.1f"|format(avg_daily_rate) }}/dia{% else %}N/D{% endif %}</strong>
-                         <small class="text-muted d-block mt-1">*Cálculo após 05/05.</small>
-                    </div>
+                    {# --- Área para exibir a Taxa Média Diária (MODIFICADA) --- #}
+                {% set rate_to_pass_to_js = '' %} {# Inicializa vazio #}
+                {% if avg_daily_rate_status == 'real' and avg_daily_rate is number and avg_daily_rate > 0 %}
+                    {% set rate_to_pass_to_js = avg_daily_rate|round(1) %}
+                {% elif avg_daily_rate_status == 'placeholder' and avg_daily_rate is number and avg_daily_rate > 0 %}
+                    {% set rate_to_pass_to_js = avg_daily_rate|round(1) %}
+                {% endif %}
+
+                <div class="alert
+                            {% if avg_daily_rate_status == 'real' %}alert-success
+                            {% elif avg_daily_rate_status in ['placeholder', 'erro_calculo_taxa', 'nao_calculado_ainda', 'aguardando_dados'] %}alert-info
+                            {% elif avg_daily_rate_status in ['sem_historico', 'dados_insuficientes'] %}alert-warning
+                            {% else %}alert-secondary{% endif %}
+                            small p-2 mb-3"
+                    id="historical-daily-rate-info"
+                    data-historical-rate="{{ rate_to_pass_to_js }}">
+
+                    <i class="bi bi-speedometer2 me-1"></i>
+                    {# Ajuste no texto principal: remove (Est*) se a taxa for 'real' #}
+                    Taxa Diária{% if avg_daily_rate_status != 'real' %} (Est*){% endif %}:
+
+                    <strong>
+                        {% if avg_daily_rate_status == 'real' and avg_daily_rate is number and avg_daily_rate > 0 %}
+                            {{ "%.1f"|format(avg_daily_rate|float) }}/dia
+                            <span class="badge bg-success-subtle text-success-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="Taxa calculada com base no seu histórico de entregas.">
+                                <i class="bi bi-check-circle-fill me-1"></i>Real
+                            </span>
+                        {% elif avg_daily_rate_status == 'placeholder' and avg_daily_rate is number and avg_daily_rate > 0 %}
+                            {{ "%.1f"|format(avg_daily_rate|float) }}/dia
+                            <span class="badge bg-info-subtle text-info-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="Taxa padrão utilizada para cálculos iniciais.">
+                                <i class="bi bi-gear-fill me-1"></i>Padrão
+                            </span>
+                        {% elif avg_daily_rate_status == 'sem_historico' %}
+                            Sem histórico
+                            <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="Não há dados de entregas para calcular sua taxa. O histórico começa a ser registrado após a primeira busca.">
+                                <i class="bi bi-hourglass-split me-1"></i>Info
+                            </span>
+                        {% elif avg_daily_rate_status == 'dados_insuficientes' %}
+                            Dados insuficientes
+                            <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="O histórico de entregas ainda é muito curto para uma estimativa precisa da taxa média.">
+                                <i class="bi bi-graph-down me-1"></i>Info
+                            </span>
+                        {% elif avg_daily_rate_status == 'erro_calculo_taxa' %}
+                            N/D (Erro no cálculo)
+                            <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="Ocorreu um problema ao tentar calcular sua taxa real.">
+                                <i class="bi bi-x-octagon-fill me-1"></i>Aviso
+                            </span>
+                        {% else %} {# Para 'nao_calculado_ainda', 'aguardando_dados' #}
+                            N/D
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="Aguardando dados da fazenda ou cálculo inicial.">
+                                <i class="bi bi-clock-history me-1"></i>Aguardando
+                            </span>
+                        {% endif %}
+                    </strong>
+
+                    {# As mensagens explicativas abaixo podem ser mantidas, simplificadas ou até removidas
+                    se os tooltips nos badges forem considerados suficientes. #}
+                    <small class="text-muted d-block mt-1">
+                        {% if avg_daily_rate_status == 'real' %}
+                            Baseado no seu histórico de entregas recentes.
+                        {% elif avg_daily_rate_status == 'placeholder' %}
+                            Use os dados da sua fazenda para uma estimativa real.
+                        {% elif avg_daily_rate_status == 'sem_historico' %}
+                            O cálculo da taxa real iniciará após a primeira busca de dados da sua fazenda.
+                        {% elif avg_daily_rate_status == 'dados_insuficientes' %}
+                            Continue usando a ferramenta para um cálculo mais preciso.
+                        {% elif avg_daily_rate_status == 'erro_calculo_taxa' %}
+                            Uma taxa padrão será usada para as projeções.
+                        {% elif avg_daily_rate_status == 'aguardando_dados' and farm_id_submitted %}
+                            Aguardando dados de <span class="fw-bold">{{ farm_id_submitted }}</span>.
+                        {% else %}
+                            Busque um Farm ID para obter estimativas.
+                        {% endif %}
+                    </small>
+                </div>
 
                     {# --- Área onde os resultados da projeção aparecerão --- #}
                     <div id="projection-results-area">
-                         {# --- Conteúdo inicial/placeholder --- #}
-                         <p class="text-center text-muted small" id="projection-placeholder-text">
+                        {# --- Conteúdo inicial/placeholder --- #}
+                        <p class="text-center text-muted small" id="projection-placeholder-text">
                             <i class="bi bi-info-circle me-1"></i> Clique em um item de <span class="badge bg-warning text-dark">{{ token_name|default('Ticket') }}</span> na loja ao lado para calcular.
                         </p>
                         {# --- Fim do conteúdo inicial --- #}
-
                     </div>
                     {# --- Fim da área de resultados --- #}
                     <div id="calculation-details-area" class="mt-3 border-top pt-2">

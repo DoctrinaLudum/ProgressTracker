@@ -130,6 +130,44 @@ def index():
     if not isinstance(bounties_data, dict): # Segurança extra
         bounties_data = {}
 
+    # ---> Define a taxa média diária efetiva para exibição e uso ---
+    effective_avg_daily_rate = taxa_media_diaria_placeholder # Default numérico
+    avg_daily_rate_status = 'placeholder' # Default textual para o status da taxa
+
+    if analise_tokens_deliveries and isinstance(analise_tokens_deliveries, dict):
+        status_analise_hist = analise_tokens_deliveries.get('status')
+        taxa_real_calculada = analise_tokens_deliveries.get('taxa_media_diaria_real')
+
+        if status_analise_hist == 'ok' and \
+           isinstance(taxa_real_calculada, (float, int)) and taxa_real_calculada > 0:
+            effective_avg_daily_rate = taxa_real_calculada
+            avg_daily_rate_status = 'real' # A taxa é baseada em dados reais
+            log.info(f"Usando taxa média diária REAL calculada: {effective_avg_daily_rate:.2f}")
+        elif status_analise_hist == 'sem_historico':
+            avg_daily_rate_status = 'sem_historico' # Não há dados para calcular
+            log.info("Sem histórico para calcular taxa média diária real. Status: sem_historico.")
+            # effective_avg_daily_rate já é o placeholder numérico
+        elif status_analise_hist == 'dados_insuficientes':
+            avg_daily_rate_status = 'dados_insuficientes' # Dados insuficientes
+            log.info("Dados insuficientes para calcular taxa média diária real de forma confiável. Status: dados_insuficientes.")
+            # effective_avg_daily_rate já é o placeholder numérico
+        else: # Inclui outros status de erro da análise ou taxa não positiva
+            avg_daily_rate_status = 'erro_calculo_taxa' # Um status genérico para quando a taxa não pôde ser usada
+            log.warning(f"Não foi possível usar taxa média diária real (status análise: {status_analise_hist}, taxa calc: {taxa_real_calculada}). Usando placeholder.")
+            # effective_avg_daily_rate já é o placeholder numérico
+    else:
+        # Este caso ocorre se analise_tokens_deliveries não for um dict (ex: None em requisição GET)
+        # ou se farm_data não foi obtido (então analise_tokens_deliveries não foi nem tentado)
+        if farm_id_submitted and not farm_data_display and not error_message: # Se um ID foi submetido mas não houve dados/erro fatal
+            avg_daily_rate_status = 'aguardando_dados' # Ou um status que indique que a busca falhou
+        else: # Para requisições GET ou erros antes da análise
+             avg_daily_rate_status = 'nao_calculado_ainda' # Ou simplesmente mantém 'placeholder'
+        log.info(f"Análise de tokens não disponível ou farm não buscado. Status da taxa: {avg_daily_rate_status}.")
+        # effective_avg_daily_rate já é o placeholder
+
+    log.info(f"Renderizando template index.html (Farm ID: {farm_id_submitted}) com effective_avg_daily_rate: {effective_avg_daily_rate}, status: {avg_daily_rate_status}")
+    # ---> FIM Define a taxa média diária efetiva para exibição e uso ---
+
     log.info(f"Renderizando template index.html (Farm ID: {farm_id_submitted})")
 
     # <<< ADICIONE ESTAS LINHAS DE DEBUG >>>
@@ -138,6 +176,8 @@ def index():
     print(f"DEBUG main.py -> error_message: {error_message}")
     print(f"DEBUG main.py -> npc_rates: {npc_completion_rates}")
     print(f"DEBUG main.py -> analise_tokens: {analise_tokens_deliveries}")
+    print(f"DEBUG main.py -> effective_avg_daily_rate: {effective_avg_daily_rate}")
+    print(f"DEBUG main.py -> avg_daily_rate_status: {avg_daily_rate_status}") # << NOVO DEBUG PRINT
     print("-" * 30)
     # --- FIM DEBUG ---
 
@@ -161,7 +201,8 @@ def index():
                            config=config, # Passa config para acesso a constantes no template
                            shop_items_all=itens_loja_completo,
                            shop_items_ticket=itens_loja_tickets, # Apenas itens de ticket (se necessário)
-                           avg_daily_rate=taxa_media_diaria_placeholder, # Placeholder inicial
+                           avg_daily_rate=effective_avg_daily_rate, # Placeholder inicial
+                           avg_daily_rate_status=avg_daily_rate_status,
                            current_year=current_year,
                            app_version=app_version,
                            bumpkin_image_url=bumpkin_image_url,
@@ -178,8 +219,10 @@ def calculate_projection():
 
     item_name = data.get('item_name')
     simulated_rate_str = data.get('simulated_rate') # Pode ser None
+    historical_rate_from_js = data.get('historical_rate') #Pega a taxa histórica
     marked_item_names = data.get('marked_items', []) # Pega a lista, default: lista vazia []
-    log.info(f"Calculando projeção AJAX - Item: {item_name}, Taxa Simulada: {simulated_rate_str}")
+
+    log.info(f"Calculando projeção AJAX - Item: {item_name}, Taxa Simulada (do input): {simulated_rate_str}, Taxa Histórica (do JS): {historical_rate_from_js}, Marcados: {marked_item_names}")
 
     if not item_name:
         log.warning("Requisição AJAX sem 'item_name'.")
@@ -191,11 +234,15 @@ def calculate_projection():
          log.error("Configuração SEASONAL_SHOP_ITEMS não encontrada ou vazia em config.py")
          return jsonify({"success": False, "error": "Configuração interna da loja não encontrada"}), 500
 
-     # <<< CHAMADA PARA A NOVA FUNÇÃO DE DETERMINAÇÃO DE TAXA >>>
-    # O placeholder de 10.0 pode ser passado como default_rate
-    rate_to_use, is_simulation = route_helpers.determine_active_daily_rate(simulated_rate_str, log, 10.0)
-    # A variável 'simulated_rate' que era usada para a flag 'is_simulation'
-    # agora é diretamente retornada como 'is_simulation'.
+    # <<< ATUALIZA A CHAMADA PARA determine_active_daily_rate >>>
+    # Passa a taxa simulada, a taxa histórica recebida do JS, o logger e o placeholder global.
+    rate_to_use, is_simulation = route_helpers.determine_active_daily_rate(
+        simulated_rate_str,         # Taxa do campo de simulação (pode ser None)
+        historical_rate_from_js,    # Taxa do data-attribute (pode ser None)
+        log,
+        default_placeholder_rate=10.0 # Placeholder global se nenhuma das outras for válida/fornecida
+    )
+    # <<< FIM DA ATUALIZAÇÃO DA CHAMADA >>>
 
     # <<< CHAMADA PARA A NOVA FUNÇÃO DE CÁLCULO DE DIAS RESTANTES >>>
     season_end_date_config_str = getattr(config, 'SEASON_END_DATE', None)
@@ -230,7 +277,7 @@ def calculate_projection():
             "item_name": item_name,
             "calculated_cost": custo_total_calculado if custo_total_calculado != float('inf') else None,
             "projected_days": dias_projetados if dias_projetados != float('inf') else None,
-            "avg_daily_rate_used": rate_to_use,
+            "avg_daily_rate_used": rate_to_use, # Esta é a taxa efetivamente usada no cálculo
             "is_simulation": is_simulation, # Usa o 'simulated_rate' original para esta flag
             "token_name": getattr(config, 'SEASONAL_TOKEN_NAME', 'Ticket'),
             "unlock_path_items": unlock_items_list,

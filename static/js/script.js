@@ -72,7 +72,7 @@ $(document).ready(function() {
 
 
     // --- Handler Click Item da Loja: Calcular Projeção e Detalhes ---
-    $(document).on('click', '#results-area-shop .item-selectable', function(event) { // MODIFICADO
+    $(document).on('click', '#results-area-shop .item-selectable', function(event) {
         event.preventDefault(); // Apenas para itens com '.item-selectable' (tickets)
 
         const $itemCard = $(this);
@@ -90,13 +90,42 @@ $(document).ready(function() {
 
         if (itemName && farmId) {
             const markedItemsList = Object.keys(markedUnlockItems);
-            console.log(`Enviando AJAX Proj.: ${itemName}, Marcados:`, markedItemsList);
 
-            $.ajax({
+            // <<< NOVO: Pega a taxa histórica do data-attribute >>>
+            let historicalRateData = $('#historical-daily-rate-info').data('historical-rate');
+            let historicalRateNum = null;
+
+            if (historicalRateData !== "" && historicalRateData !== undefined) {
+                let parsedRate = parseFloat(historicalRateData);
+                if (!isNaN(parsedRate) && parsedRate > 0) {
+                    historicalRateNum = parsedRate;
+                }
+            }
+            // <<< FIM NOVO >>>
+
+            console.log(`Enviando AJAX Proj.: Item=${itemName}, Farm=${farmId}, Marcados:`, markedItemsList, `Taxa Histórica (do data-attr): ${historicalRateData}, Usada se válida: ${historicalRateNum}`);
+
+            // Constrói o payload do AJAX
+            let ajaxData = {
+                item_name: itemName,
+                farm_id: farmId,
+                marked_items: markedItemsList
+            };
+
+            // <<< NOVO: Adiciona historical_rate ao payload AJAX se existir e for válido >>>
+            if (historicalRateNum !== null) {
+                ajaxData.historical_rate = historicalRateNum;
+                console.log("Taxa histórica numérica válida encontrada e será enviada:", historicalRateNum);
+            } else {
+                console.log("Nenhuma taxa histórica numérica válida encontrada no data-attribute. Não será enviada.");
+            }
+            // <<< FIM NOVO >>>
+
+             $.ajax({
                 url: '/calculate_projection',
                 type: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify({ item_name: itemName, farm_id: farmId, marked_items: markedItemsList }),
+                data: JSON.stringify(ajaxData), // << MODIFICADO para usar o objeto ajaxData
                 dataType: 'json',
                 success: function(response) {
                     console.log("Resposta AJAX Proj.:", response);
@@ -181,7 +210,10 @@ $(document).ready(function() {
                     simulatorSection.hide();
                 }
             }); // Fim AJAX
-        } else { /* Erro: itemName ou farmId faltando */ }
+        } else { 
+            console.warn("ItemName ou FarmID faltando. Cálculo de projeção não acionado.");
+            resultsArea.html('<p class="text-warning small">Informações insuficientes para calcular (item ou ID da fazenda faltando).</p>');
+        }
     }); // Fim .item-selectable click
 
 
