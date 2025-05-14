@@ -494,7 +494,7 @@ def get_all_bounties():
 
 # ---> get_active_bounties <---
 # (Sem alterações necessárias aqui para a mudança de snapshot)
-def get_active_bounties():
+def get_active_bounties(farm_id: str):
     """Busca apenas bounties marcadas como ativas no Firestore."""
     # (Código como na sua versão anterior)
     if not db:

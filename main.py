@@ -48,6 +48,7 @@ def index():
     total_delivery_bonus = 0
     active_bonus_details = {}
     bounties_data = {} # Inicializa bounties_data aqui para GET e POST
+    chores_data_for_template = [] # Inicializa chores_data para GET e POST
     bumpkin_image_url = None
 
     # --- Processamento do POST (Busca de Fazenda) ---
@@ -95,6 +96,7 @@ def index():
                 live_tokens = processed_farm_info["live_tokens"]
                 live_cost_sfl = processed_farm_info["live_cost_sfl"]
                 total_delivery_bonus = processed_farm_info["total_delivery_bonus"]
+                chores_data_for_template = processed_farm_info.get("chores_data", []) # Extrai chores_data
                 active_bonus_details = processed_farm_info["active_bonus_details"]
                 bounties_data = processed_farm_info["bounties_data"] 
                 bumpkin_image_url = processed_farm_info["bumpkin_image_url"]
@@ -129,6 +131,9 @@ def index():
      # Garante que bounties_data existe mesmo para GET
     if not isinstance(bounties_data, dict): # Segurança extra
         bounties_data = {}
+    # Garante que chores_data_for_template existe e é uma lista
+    if not isinstance(chores_data_for_template, list):
+        chores_data_for_template = []
 
     # ---> Define a taxa média diária efetiva para exibição e uso ---
     effective_avg_daily_rate = taxa_media_diaria_placeholder # Default numérico
@@ -170,12 +175,17 @@ def index():
 
     log.info(f"Renderizando template index.html (Farm ID: {farm_id_submitted})")
 
-    # <<< ADICIONE ESTAS LINHAS DE DEBUG >>>
+    # --- DEBUG ANTES DE RENDERIZAR O TEMPLATE ---
     print("-" * 30)
     print(f"DEBUG main.py -> farm_data type: {type(farm_data_display)}")
     print(f"DEBUG main.py -> error_message: {error_message}")
     print(f"DEBUG main.py -> npc_rates: {npc_completion_rates}")
     print(f"DEBUG main.py -> analise_tokens: {analise_tokens_deliveries}")
+    # Logs para bounties e chores
+    log.info("--- DADOS PARA O TEMPLATE (main.py) ---")
+    log.info(f"MAIN.PY bounties_data: {bounties_data}")
+    log.info(f"MAIN.PY chores_data: {chores_data_for_template}")
+    log.info("------------------------------------")
     print(f"DEBUG main.py -> effective_avg_daily_rate: {effective_avg_daily_rate}")
     print(f"DEBUG main.py -> avg_daily_rate_status: {avg_daily_rate_status}") # << NOVO DEBUG PRINT
     print("-" * 30)
@@ -196,6 +206,7 @@ def index():
                            delivery_bonus=total_delivery_bonus,
                            active_bonus_details=active_bonus_details,
                            bounties_data=bounties_data,
+                           chores_data=chores_data_for_template, # Passa chores_data para o template
                            # Dados Gerais e de Configuração
                            token_name=seasonal_token_name,
                            config=config, # Passa config para acesso a constantes no template

@@ -6,6 +6,7 @@ import math
 import logging
 import statistics
 import time # Importa time para checar VIP
+from typing import List, Dict, Any, Optional
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +48,8 @@ def calculate_delivery_bonus(farm_data, config_buffs):
     # 1. Check VIP
     if "vip" in config_buffs and config_buffs["vip"]["type"] == "vip":
         if vip_data.get("expiresAt", 0) > current_time_ms:
-            bonus_value = config_buffs["vip"]["bonus"]
+            # Tenta 'bonus_value' primeiro, depois 'bonus'
+            bonus_value = config_buffs["vip"].get("bonus_value", config_buffs["vip"].get("bonus", 0))
             total_bonus += bonus_value
             active_buff_details["vip"] = True # <<< Adiciona detalhe 'vip'
             log.debug(f"  - Buff VIP Ativo (+{bonus_value})")
@@ -64,8 +66,8 @@ def calculate_delivery_bonus(farm_data, config_buffs):
     for buff_key, buff_info in wearable_buff_configs.items():
          if buff_key.startswith("PLACEHOLDER_"): continue # Pula placeholders
          if buff_key in all_equipped_items_names:
-             if buff_key not in active_buff_details: # Evita contar duas vezes
-                 bonus_value = buff_info.get("bonus", 0)
+             if buff_key not in active_buff_details: # Evita contar duas vezes o mesmo buff
+                 bonus_value = buff_info.get("bonus_value", buff_info.get("bonus", 0))
                  total_bonus += bonus_value
                  active_buff_details[buff_key] = True # <<< Adiciona detalhe do item
                  log.debug(f"  - Buff Equipado '{buff_key}' Ativo (+{bonus_value})")
@@ -79,8 +81,8 @@ def calculate_delivery_bonus(farm_data, config_buffs):
     for buff_key, buff_info in collectible_buff_configs.items():
         if buff_key.startswith("PLACEHOLDER_"): continue
         if buff_key in all_placed_collectibles_names:
-            if buff_key not in active_buff_details:
-                bonus_value = buff_info.get("bonus", 0)
+            if buff_key not in active_buff_details: # Evita contar duas vezes o mesmo buff
+                bonus_value = buff_info.get("bonus_value", buff_info.get("bonus", 0))
                 total_bonus += bonus_value
                 active_buff_details[buff_key] = True # <<< Adiciona detalhe do item
                 log.debug(f"  - Buff Colecionável '{buff_key}' Ativo (+{bonus_value})")
@@ -168,6 +170,115 @@ def calcular_estimativa_token_deliveries(farm_id, data_inicio_str, data_fim_str,
     log.info(f"Análise V4 concluída Farm {farm_id}. Conc (Mudança Real):{total_conclusoes_geral}, TokEst:{total_tokens_estimados_geral}, SFLEst:{total_custo_estimado_geral_sfl:.2f}, Completos:{dados_completos_geral}")
     return { 'total_conclusoes': total_conclusoes_geral, 'total_tokens_estimados': total_tokens_estimados_geral, 'total_custo_estimado_sfl': round(total_custo_estimado_geral_sfl, 4), 'detalhes_por_npc': detalhes, 'dados_completos': dados_completos_geral }
 
+# ---> Funçãos para Cálculo de Bônus em Atividades (Bounties, Chores, etc.) ---
+def calculate_bonus_for_activity(
+    active_player_bonus_names: List[str],
+    activity_type: str,
+    defined_player_bonuses: Dict[str, Any], # Ex: config.SEASONAL_DELIVERY_BUFFS
+    activity_rules_config: Dict[str, Any],  # Ex: config.ACTIVITY_BONUS_RULES
+) -> int:
+    """
+    Calcula o valor total do bônus aplicável para uma dada atividade
+    com base nos bônus ativos do jogador e nas regras da atividade.
+
+    Args:
+        active_player_bonus_names: Lista de nomes dos bônus ativos (ex: ['vip', 'Flower Mask']).
+        activity_type: String identificando a atividade (ex: 'animal_bounties', 'chores').
+        defined_player_bonuses: Dicionário com as definições de todos os bônus possíveis (do config).
+        activity_rules_config: Dicionário com as regras de aplicação de bônus por atividade (do config).
+
+    Returns:
+        O valor total do bônus (ex: 1, 2, etc.).
+    """
+    total_bonus_value = 0
+    activity_rules = activity_rules_config.get(activity_type)
+
+    if not activity_rules:
+        log.warning(f"Nenhuma regra de bônus definida em ACTIVITY_BONUS_RULES para a atividade: {activity_type}")
+        return 0
+
+    applicable_bonus_sources_for_activity = activity_rules.get("applicable_bonuses", [])
+
+    for bonus_name_from_player in active_player_bonus_names:
+        if bonus_name_from_player in applicable_bonus_sources_for_activity:
+            bonus_definition = defined_player_bonuses.get(bonus_name_from_player)
+            if bonus_definition:
+                # Usamos 'bonus_value' como definido em nosso config.py para SEASONAL_DELIVERY_BUFFS
+                total_bonus_value += bonus_definition.get("bonus_value", bonus_definition.get("bonus", 0)) # Compatibilidade com 'bonus' ou 'bonus_value'
+            else:
+                log.warning(f"Definição não encontrada em SEASONAL_DELIVERY_BUFFS para o bônus '{bonus_name_from_player}' que é aplicável à atividade '{activity_type}'.")
+    
+    if total_bonus_value > 0:
+        log.info(f"Bônus total de +{total_bonus_value} calculado para '{activity_type}' (Bônus ativos do jogador: {active_player_bonus_names}, Bônus aplicáveis à atividade: {applicable_bonus_sources_for_activity})")
+    return total_bonus_value
+# ---> FIM Função para Cálculo de Bônus em Atividades (Bounties, Chores, etc.) ---
+
+# ---> Função Aplicação de Bônus em Atividades (Bounties, Chores, etc.) ---
+
+def apply_bonus_to_reward(
+    reward_object: Dict[str, Any], 
+    bonus_value: int,
+    activity_rule: Dict[str, Any], # A entrada específica de config.ACTIVITY_BONUS_RULES[activity_type]
+    seasonal_token_name: str, 
+) -> Dict[str, Any]:
+    """
+    Aplica um bônus calculado a um objeto de recompensa, modificando-o.
+    Suporta 'numeric_token' e 'item_dict' como reward_type.
+
+    Args:
+        reward_object: O dicionário da bounty ou da recompensa a ser modificado.
+        bonus_value: O valor do bônus a ser aplicado.
+        activity_rule: As regras da atividade (de config.ACTIVITY_BONUS_RULES) que definem
+                       como aplicar o bônus (reward_type, target_field_name, etc.).
+        seasonal_token_name: O nome do token sazonal (ex: "Geniseed").
+
+    Returns:
+        O dicionário reward_object modificado.
+    """
+    if bonus_value == 0:
+        return reward_object # Sem alterações se não há bônus
+
+    reward_type = activity_rule.get("reward_type")
+    # Modificaremos o objeto diretamente, pois em route_helpers.py já se espera que
+    # uma cópia seja feita antes de chamar esta função, se necessário.
+
+    if reward_type == "numeric_token":
+        target_field = activity_rule.get("target_field_name")
+        if target_field and target_field in reward_object and isinstance(reward_object[target_field], (int, float)):
+            original_value = reward_object[target_field]
+            reward_object[target_field] = original_value + bonus_value
+            reward_object['applied_bonus_value'] = reward_object.get('applied_bonus_value', 0) + bonus_value
+            reward_object['base_reward_value'] = original_value
+            reward_object['is_bonus_applied'] = True
+            log.info(f"Bônus de +{bonus_value} aplicado ao campo '{target_field}' da recompensa '{reward_object.get('name', 'N/A')}' (era {original_value}, agora {reward_object[target_field]})")
+        # Adicionar logs de erro/aviso se target_field não existir ou não for numérico
+
+    elif reward_type == "item_dict":
+        # Implementação para item_dict (como discutido anteriormente)
+        item_container_field = activity_rule.get("item_container_field")
+        target_item_keys = activity_rule.get("target_item_keys", [])
+        if item_container_field and item_container_field in reward_object and isinstance(reward_object.get(item_container_field), dict):
+            items_dict = reward_object[item_container_field]
+            bonus_applied_this_call = False
+            for item_key_to_buff in target_item_keys:
+                if item_key_to_buff in items_dict and isinstance(items_dict[item_key_to_buff], (int, float)):
+                    original_value = items_dict[item_key_to_buff]
+                    items_dict[item_key_to_buff] += bonus_value
+                    log.info(f"Bônus de +{bonus_value} aplicado ao item '{item_key_to_buff}' em '{item_container_field}' da recompensa '{reward_object.get('name', 'N/A')}'. Era {original_value}, agora {items_dict[item_key_to_buff]}")
+                    if item_key_to_buff == seasonal_token_name: # Guarda o valor base do token sazonal
+                        reward_object['base_reward_value'] = original_value
+                    bonus_applied_this_call = True
+            if bonus_applied_this_call:
+                reward_object['applied_bonus_value'] = reward_object.get('applied_bonus_value', 0) + bonus_value
+                reward_object['is_bonus_applied'] = True
+        # Adicionar logs de erro/aviso se campos não existirem ou não forem do tipo esperado
+
+    else:
+        log.warning(f"Tipo de recompensa desconhecido ou não suportado: '{reward_type}' nas regras da atividade '{activity_rule.get('description', 'N/A')}'.")
+
+    return reward_object
+
+# ---> FIM Função Aplicação de Bônus em Atividades (Bounties, Chores, etc.) ---
 
 # --- LÓGICA PARA PROJEÇÕES SAZONAIS (MODIFICADA) ---
 

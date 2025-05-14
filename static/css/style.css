@@ -161,14 +161,14 @@ main.container {
     display: flex;
     flex-direction: column;
     height: 120px;  /* <<< ALTURA FIXA DO CARD (Ajuste conforme necessário) */
-    transition: box-shadow 0.2s ease-in-out;
+    transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out; /* Adiciona transform à transição para suavidade */
     width: 100%;    /* Ocupa a largura da coluna do grid */
     overflow: hidden; /* Esconde conteúdo que transbordar */
 }
 
 .bounty-card:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    /* transform: scale(1.03); /* Removido scale para evitar problemas de layout no hover */
+    transform: translateY(-3px); /* Adiciona um leve "levantamento" no hover */
 }
 
 /* Corpo do Card de Bounty (para controlar padding e conteúdo flex) */
@@ -210,6 +210,7 @@ main.container {
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2; /* Limita a 2 linhas */
+    line-clamp: 2; /* Propriedade padrão para compatibilidade futura */
     -webkit-box-orient: vertical;
     text-overflow: ellipsis;
     min-height: calc(2 * 1.2em); /* Garante espaço vertical para 2 linhas */

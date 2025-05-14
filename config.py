@@ -54,27 +54,71 @@ BASE_DELIVERY_REWARDS = {
     "tywin": 5,
 }
 
-# --- CONSTANTES PARA BÔNUS E TOKEN SAZONAL ---
-# Dicionário de Buffs Sazonais para Entregas
-# ##########################################################################
-# ## ATENÇÃO! VERIFIQUE OS NOMES DOS ITENS ABAIXO CONTRA O JSON REAL!   ##
-# ## Os nomes aqui DEVEM ser IDÊNTICOS aos identificadores usados na API ##
-# ## quando os itens estiverem ativos/equipados/colocados.             ##
-# ##########################################################################
-SEASONAL_DELIVERY_BUFFS = {
+# ---> DEFINIÇÃO DAS FONTES DE BÔNUS DO JOGADOR ---
+# Este dicionário define os bônus potenciais, seus valores base e como verificar se estão ativos.
+# Pode ser usado para diferentes tipos de atividades, não apenas entregas.
+# Considerar renomear para DEFINED_PLAYER_BONUSES para maior clareza de seu propósito geral.
+# Por enquanto, manteremos o nome original, mas entendendo seu uso mais amplo.
+SEASONAL_DELIVERY_BUFFS = { # Poderia ser renomeado para DEFINED_PLAYER_BONUSES
     # Tipo 'vip': Verifica se o VIP está ativo
-    "vip": {"type": "vip", "bonus": 2},
+    "vip": {"type": "vip", "bonus_value": 2, "description": "VIP Status"}, # 'bonus' renomeado para 'bonus_value'
 
     # Tipo 'equipped': Verifica se o VALOR abaixo existe em farm.bumpkin.equipped.* OU farm.farmHands.bumpkins.*.equipped.*
-    "Flower Mask": {"type": "equipped", "bonus": 1},      # <<< VERIFICAR NOME EXATO NO JSON!
-    "Love Charm Shirt": {"type": "equipped", "bonus": 1}, # <<< VERIFICAR NOME EXATO NO JSON!
+    "Flower Mask": {"type": "equipped", "bonus_value": 1, "description": "Flower Mask equipped"},
+    "Love Charm Shirt": {"type": "equipped", "bonus_value": 1, "description": "Love Charm Shirt equipped"},
 
     # Tipo 'collectible': Verifica se a CHAVE abaixo existe em farm.home.collectibles OU farm.collectibles
-    "Heart Air Balloon": {"type": "collectible", "bonus": 1}, # <<< VERIFICAR NOME EXATO NO JSON!
+    "Heart Air Balloon": {"type": "collectible", "bonus_value": 1, "description": "Heart Air Balloon placed"},
 
     # Adicionar outros buffs futuros aqui
 }
 
+
+# ---> REGRAS DE APLICAÇÃO DE BÔNUS POR ATIVIDADE ---
+# Define como os bônus de SEASONAL_DELIVERY_BUFFS
+# se aplicam a diferentes atividades e tipos de recompensa.
+
+ALL_PLAYER_BONUSES = list(SEASONAL_DELIVERY_BUFFS.keys()) 
+# Resultado: ["vip", "Flower Mask", "Love Charm Shirt", "Heart Air Balloon"]
+
+ALL_PLAYER_BONUSES_EXCEPT_VIP = [
+    bonus_name for bonus_name in ALL_PLAYER_BONUSES if bonus_name != "vip"]
+# Resultado: ["Flower Mask", "Love Charm Shirt", "Heart Air Balloon"]
+
+
+ACTIVITY_BONUS_RULES = {
+    "deliveries": {
+        "description": "Bônus para tokens sazonais de entregas de NPC.",
+        "applicable_bonuses": ALL_PLAYER_BONUSES, # Todos os bônus
+        "reward_type": "numeric_token"
+        # A lógica de aplicação para deliveries já é bem tratada pelo total_delivery_bonus
+    },
+    "animal_bounties": {
+        "description": "Bônus para tokens sazonais em recompensas de bounties de animais (Mega Board).",
+        "applicable_bonuses": ALL_PLAYER_BONUSES_EXCEPT_VIP, # Todos, exceto VIP
+        "reward_type": "item_dict",
+        "item_container_field": "items",
+        "target_item_keys": [SEASONAL_TOKEN_NAME]
+    },
+    "generic_mega_board_bounties": {
+        "description": "Bônus para tokens sazonais de bounties gerais do Mega Board (que usam 'items' para Geniseed).",
+        "applicable_bonuses": ALL_PLAYER_BONUSES_EXCEPT_VIP, # Todos, exceto VIP
+        "reward_type": "item_dict", # Mudança: A API mostra Geniseed em 'items'
+        "item_container_field": "items",
+        "target_item_keys": [SEASONAL_TOKEN_NAME]
+    },
+    "chores": { # Nova entrada para Chores
+        "description": "Bônus para tokens sazonais de Chores (tarefas).",
+        "applicable_bonuses": ALL_PLAYER_BONUSES, # Todos os bônus
+        "reward_type": "item_dict", 
+        "item_container_field": "items", # As chores no JSON têm farm.choreBoard.chores[npc_name].reward.items
+        "target_item_keys": [SEASONAL_TOKEN_NAME]
+        # Nota: Para chores, o 'item_container_field' será acessado dentro de chore_data['reward']['items']
+        # A função apply_bonus_to_reward precisará de um pequeno ajuste ou de um objeto de recompensa pré-processado.
+        # Por ora, vamos manter assim e ajustar em route_helpers.py como passamos o objeto.
+
+    }
+}
 
 # --- CATEGORIAS PARA BOUNTIES (Mega Board - v2) ---
 
