@@ -30,7 +30,8 @@ def calculate_delivery_bonus(farm_data, config_buffs):
 
     total_bonus = 0
     active_buff_details = {} # <<< Dicionário para detalhes
-    current_time_ms = int(time.time() * 1000)
+    current_time_ms = int(time.time() * 1000) # Usado para VIP
+    today_date_str = datetime.now().strftime('%Y-%m-%d') # Data de hoje para comparar com eventos
 
     # Dados relevantes do JSON
     vip_data = farm_data.get("vip", {})
@@ -38,6 +39,7 @@ def calculate_delivery_bonus(farm_data, config_buffs):
     equipped_farmhands = farm_data.get("farmHands", {}).get("bumpkins", {})
     collectibles_home = farm_data.get("home", {}).get("collectibles", {})
     collectibles_farm = farm_data.get("collectibles", {})
+    calendar_dates_from_api = farm_data.get("calendar", {}).get("dates", [])
 
     # Buffs configurados
     wearable_buff_configs = {k: v for k, v in config_buffs.items() if v.get("type") == "equipped"}
@@ -87,7 +89,18 @@ def calculate_delivery_bonus(farm_data, config_buffs):
                 active_buff_details[buff_key] = True # <<< Adiciona detalhe do item
                 log.debug(f"  - Buff Colecionável '{buff_key}' Ativo (+{bonus_value})")
 
-    log.info(f"Bônus total: +{total_bonus}. Detalhes Ativos: {list(active_buff_details.keys())}")
+    # 4. Check Calendar Events (e.g., doubleDelivery)
+    if isinstance(calendar_dates_from_api, list):
+        for event_date_obj in calendar_dates_from_api:
+            if isinstance(event_date_obj, dict) and \
+               event_date_obj.get("name") == "doubleDelivery" and \
+               event_date_obj.get("date") == today_date_str:
+                active_buff_details["is_double_delivery_active"] = True
+                log.debug(f"  - Evento 'doubleDelivery' ATIVO HOJE ({today_date_str})")
+                # Não adicionamos ao total_bonus aqui, pois é um multiplicador
+                break # Encontrou o evento de hoje, pode parar
+
+    log.info(f"Bônus total (aditivo): +{total_bonus}. Detalhes Ativos: {list(active_buff_details.keys())}")
     # <<< RETORNA O DICIONÁRIO COMPLETO >>>
     return {'total_bonus': total_bonus, 'details': active_buff_details}
 

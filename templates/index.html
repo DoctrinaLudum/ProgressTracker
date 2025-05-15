@@ -173,6 +173,11 @@
                        <i class="bi bi-list-check me-1"></i> Tarefas (Bounties)
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                   <button class="nav-link" id="potential-calendar-tab" data-bs-toggle="tab" data-bs-target="#potential-calendar-tab-pane" type="button" role="tab" aria-controls="potential-calendar-tab-pane" aria-selected="false">
+                       <i class="bi bi-calendar-event me-1"></i> Potencial da Temporada
+                    </button>
+                </li>
             </ul>
 
             <div class="tab-content pt-3" id="analysisTabsContent">
@@ -191,6 +196,11 @@
                 {# Painel Tarefas #}
                 <div class="tab-pane" id="bounties-tab-pane" role="tabpanel" aria-labelledby="bounties-tab" tabindex="0">
                    {% include '_bounties_content.html' %}
+                </div>
+
+                {# Painel Calendario Potencial #}
+                <div class="tab-pane" id="potential-calendar-tab-pane" role="tabpanel" aria-labelledby="potential-calendar-tab" tabindex="0">
+                       {% include '_season_potential_calendar.html' with context %}
                 </div>
 
                 

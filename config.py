@@ -1,8 +1,16 @@
 # --- Versão da Aplicação ---
 APP_VERSION = "0.1.0"
 
-# Data final da temporada atual (ATUALIZE A CADA TEMPORADA)
+# Data final da temporada atual (ATUALIZE A CADA TEMPORADA
+SEASON_START_DATE = "2025-05-01"
 SEASON_END_DATE = "2025-07-31" # Exemplo: Final de Julho de 2025
+
+# Data em que atividades (além do baú) começam a render tokens sazonais
+DATE_ACTIVITIES_START_YIELDING_TOKENS = "2025-05-05"
+
+#Datas de entrega dupla para calendario (out id farm)
+DOUBLE_DELIVERY_DATE = "2025-05-16"
+DOUBLE_DELIVERY_INTERVAL_DAYS = 8
 
 # Nome do Token Sazonal (Atualize a cada temporada)
 SEASONAL_TOKEN_NAME = "Geniseed"

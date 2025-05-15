@@ -283,3 +283,110 @@ main.container {
 }
 
 /* --- FIM DOS ESTILOS DA ABA BOUNTIES --- */
+
+/* ==========================================================================
+   9. ESTILOS DA ABA CALENDARIO (Potential Season Calendar)
+   ========================================================================== */
+
+.calendar-table th,
+.calendar-table td {
+    text-align: center; 
+    vertical-align: middle; 
+}
+
+.calendar-table .calendar-date-col {
+    white-space: nowrap; 
+    text-align: left; 
+    padding-left: 0.5rem !important; 
+}
+.calendar-table th.calendar-date-col { 
+    text-align: left;
+}
+
+.calendar-table .calendar-purchases-col .badge {
+    display: block; 
+    margin-bottom: 0.25rem; 
+    text-align: center; 
+}
+.calendar-table .calendar-purchases-col .badge:last-child {
+    margin-bottom: 0; 
+}
+
+.calendar-table td:has(span.text-danger.d-block) { 
+    padding-top: 0.25rem; 
+    padding-bottom: 0.25rem;
+}
+.calendar-table td span.text-danger.d-block {
+     margin-bottom: 0.25rem; 
+}
+.calendar-table td span.text-danger.d-block:last-child {
+     margin-bottom: 0;
+}
+
+#potential-calendar-tab-pane .table-bordered th,
+#potential-calendar-tab-pane .table-bordered td {
+    border-color: #dee2e6; 
+}
+
+#potential-calendar-tab-pane .table thead.table-dark th {
+    background-color: #212529; 
+    border-color: #32383e; 
+}
+
+#potential-calendar-tab-pane .badge { 
+    font-size: 0.7rem;    
+    padding: 0.3em 0.55em; 
+    font-weight: 500;     
+}
+
+#potential-calendar-tab-pane [data-bs-toggle="tooltip"] {
+    cursor: help;
+}
+
+.calendar-table .calendar-buffs-col {
+    min-width: 130px; 
+    white-space: pre-wrap; 
+    text-align: left; 
+}
+
+/* === NOVAS REGRAS PARA CORES ALTERNADAS DA SEMANA === */
+.calendar-table tr.week-even td {
+    background-color: #d7f7de; /* Cinza bem claro (Bootstrap 'light') para semanas pares */
+}
+.calendar-table tr.week-odd td {
+    background-color: #ffffff; /* Branco para semanas ímpares */
+}
+
+/* Opcional: Se você quiser que o hover do Bootstrap ainda funcione bem sobre essas cores */
+.calendar-table tr.week-even:hover td,
+.calendar-table tr.week-odd:hover td {
+    background-color: #e9ecef; /* Cor de hover padrão do Bootstrap 'table-hover' ou uma de sua escolha */
+}
+
+/* Opcional: Se você tiver a classe 'table-striped' na sua <table> e quiser que ela
+   seja sobrescrita pelas cores da semana, estas regras já devem fazer isso devido à especificidade.
+   Se quiser remover completamente o efeito do table-striped para esta tabela específica,
+   remova a classe 'table-striped' da tag <table> no _season_potential_calendar.html */
+
+/* Ajuste para o destaque de dias com compras, caso a cor da semana o esconda */
+/*.calendar-table tr.highlight-purchase-day td {
+    /* Se a cor da semana for muito parecida com a table-light, 
+       você pode precisar de um destaque mais forte aqui, por exemplo: */
+    /* border-left: 3px solid #fd7e14; /* Uma borda laranja à esquerda */
+    /* ou um fundo sutilmente diferente que se destaque da cor da semana */
+    /* background-color: #fff3cd !important; /* Exemplo: Amarelo bem claro Bootstrap 'warning-subtle' */
+
+    /* No entanto, a classe table-light aplicada na <tr> já deve ser suficiente.
+       Se a cor de fundo de week-even/week-odd for mais forte, pode precisar do !important.
+       Vamos manter a classe 'table-light fw-bold' na <tr> como está no HTML,
+       e o CSS acima para week-even/odd vai definir o fundo base da linha.
+       A classe table-light do bootstrap usa #fcfcfd, que é quase branco.
+       Poderíamos definir um estilo mais explícito para highlight-purchase-day se necessário.
+    */
+
+.calendar-table tr.highlight-purchase-day.week-even td {
+    background-color: #eef3f5; /* Um tom um pouco diferente para compra em semana par */
+}
+.calendar-table tr.highlight-purchase-day.week-odd td {
+    background-color: #f0f8ff; /* AliceBlue, um tom diferente para compra em semana ímpar */
+}

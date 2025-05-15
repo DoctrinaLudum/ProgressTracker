@@ -10,6 +10,7 @@ import json
 from bumpkin_utils import load_item_ids, gerar_url_imagem_bumpkin
 from sunflower_api import get_farm_data_full
 import route_helpers
+import season_calendar_simulator
 
 # Configuração do Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -50,6 +51,11 @@ def index():
     bounties_data = {} # Inicializa bounties_data aqui para GET e POST
     chores_data_for_template = [] # Inicializa chores_data para GET e POST
     bumpkin_image_url = None
+
+    # Pega a lista de prioridade do módulo do simulador para passar ao template
+    potential_calendar_data = season_calendar_simulator.generate_max_potential_season_calendar()
+    sim_buff_priority_list = season_calendar_simulator.SIM_BUFF_ITEM_PURCHASE_PRIORITY
+
 
     # --- Processamento do POST (Busca de Fazenda) ---
     if request.method == 'POST':
@@ -217,6 +223,8 @@ def index():
                            current_year=current_year,
                            app_version=app_version,
                            bumpkin_image_url=bumpkin_image_url,
+                           potential_calendar=potential_calendar_data,
+                           sim_buff_item_purchase_priority=sim_buff_priority_list
                            )
 
 # --- Rota AJAX para Calcular Projeção Sazonal ---
