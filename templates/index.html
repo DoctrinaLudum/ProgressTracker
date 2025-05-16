@@ -1,19 +1,17 @@
 {% extends 'base.html' %}
-{% block title %}Projeções Sazonais - Progress Tracker{% endblock %} {# Título Atualizado #}
+{% block title %}Projeções Sazonais - Progress Tracker{% endblock %}
 
 {% block content %}
 
     {# --- SEÇÃO 1: Introdução e Cards (SÓ APARECEM NO INÍCIO) --- #}
-    {% if not farm_id_submitted %} {# Condição para mostrar só na carga inicial #}
+    {% if not farm_id_submitted %}
         <div class="text-center mb-5 mt-4">
             <h2 class="text-success">Planeje sua Temporada no Sunflower Land!</h2>
             <p class="lead text-muted">
                  Estime seus ganhos de <strong class="text-success">{{ token_name|default('Tokens Sazonais') }}</strong>, calcule o tempo para obter itens sazonais e simule cenários!
             </p>
         </div>
-
         <div class="row mb-5 justify-content-center">
-            {# Card 1: Estimativa #}
             <div class="col-md-4 mb-3">
                 <div class="card text-center h-100 shadow-sm">
                     <div class="card-body">
@@ -23,7 +21,6 @@
                     </div>
                 </div>
             </div>
-            {# Card 2: Calculadora #}
             <div class="col-md-4 mb-3">
                 <div class="card text-center h-100 shadow-sm">
                     <div class="card-body">
@@ -33,7 +30,6 @@
                     </div>
                 </div>
             </div>
-             {# Card 3: Simulação #}
             <div class="col-md-4 mb-3">
                  <div class="card text-center h-100 shadow-sm">
                     <div class="card-body">
@@ -44,30 +40,25 @@
                 </div>
             </div>
         </div>
-
-         {# Título para o formulário, mostrado apenas na carga inicial #}
          <div class="row justify-content-center">
             <div class="col-lg-6">
                  <h4 class="text-center text-success mb-3">Comece Agora</h4>
             </div>
         </div>
-    {% endif %} {# Fim da condição para Intro/Cards/Título inicial #}
-
+    {% endif %}
 
     {# --- SEÇÃO 2: Formulário de Busca --- #}
     {% if not farm_id_submitted %}
     <div class="row justify-content-center mb-4">
         <div class="col-lg-6">
-            {# Título "Buscar Outra Fazenda" foi REMOVIDO daqui #}
             <form method="POST" action="/" id="farm-form">
                 <div class="mb-3">
-                    {# Label original removida conforme seu arquivo, mas placeholder adicionado #}
                     <input type="text" class="form-control form-control-lg" id="farm_id" name="farm_id" required value="{{ farm_id_submitted if farm_id_submitted else '' }}" placeholder="Digite o Farm ID aqui...">
                 </div>
                 <div class="d-grid">
-                    <button type="submit" class="btn btn-success btn-lg"> {# Aumentado o botão com btn-lg #}
+                    <button type="submit" class="btn btn-success btn-lg">
                          <i class="bi bi-search me-2"></i>
-                         Buscar Dados {# Texto do botão simplificado #}
+                         Buscar Dados
                     </button>
                 </div>
             </form>
@@ -84,7 +75,6 @@
 <div class="mt-0 pt-0" id="results-area">
 
     {% if error_message %}
-        {# Adiciona border-top aqui quando há erro #}
         <div class="pt-0 border-top">
              <div class="alert alert-danger" role="alert">{{ error_message }}</div>
         </div>
@@ -92,13 +82,10 @@
     {% elif farm_data %}
    
     <div>   
-
-      {# --- NOVO CARD PARA IDENTIFICAÇÃO E SALDOS --- #}
         <div class="card mb-3 shadow-sm">
             <div class="card-body">
-                {# Título H2 transformado em container flex #}
-                <div class="d-flex justify-content-between align-items-center mb-3"> {# Nova div para o título e imagem #}
-                    <h2 class="mb-0 fw-normal card-title"> {# Removido mb-3 daqui, já que a div pai tem #}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="mb-0 fw-normal card-title">
                         Fazenda
                         {% if farm_data.username %}
                             <strong class="text-success">{{ farm_data.username }}</strong>
@@ -108,11 +95,9 @@
                         <span class="badge bg-secondary fw-normal ms-2">ID: {{ farm_id_submitted }}</span>
                     </h2>
                     {% if bumpkin_image_url %}
-                        <img src="{{ bumpkin_image_url }}" alt="Bumpkin" style="width: 150px; height: auto; border-radius: 5px; margin-left: 15px;"> {# Aumentei um pouco e adicionei margem esquerda #}
+                        <img src="{{ bumpkin_image_url }}" alt="Bumpkin" style="width: 150px; height: auto; border-radius: 5px; margin-left: 15px;">
                     {% endif %}
                 </div>
-
-                {# Saldos DENTRO do mesmo card, usando list-group-flush #}
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item ps-0">
                         <strong>Moedas (Coins):</strong> {% set coins_val = farm_data.get('coins') %}{% if coins_val is not none %}{{ "%.2f"|format(coins_val|float) }}{% else %}N/A{% endif %}
@@ -121,16 +106,13 @@
                         <strong>Saldo SFL (Balance):</strong> {{ farm_data.get('balance', 'N/A') }}
                     </li>
                 </ul>
-            </div> {# Fim do card-body #}
+            </div>
         </div>
 
-            {# Bloco de Atividade Recente (Alerta "Nenhuma nova..." REMOVIDO) #}
             {% if (live_completions is defined and live_completions > 0) or (live_tokens is defined and live_tokens > 0) or (live_cost_sfl is defined and live_cost_sfl > 0) %}
              <div class="alert alert-success small mt-3" role="alert"> <h6 class="alert-heading mb-1" style="font-size: 0.9rem;">Atividade Desde a Última Verificação:</h6> <ul class="list-unstyled mb-0"> {% if live_completions > 0 %}<li>- <strong>{{ live_completions }}</strong> nova(s) entrega(s) concluída(s).</li>{% endif %} {% if live_tokens > 0 %}<li>- Tokens Sazonais Estimados Ganhos (Base): <strong>{{ live_tokens }}</strong>.</li>{% endif %} {% if live_cost_sfl > 0 %}<li>- Custo Flower Estimado Incorrido: <strong>~{{ "%.2f"|format(live_cost_sfl|float) }}</strong> <em class="text-muted" style="font-size: 0.9em;">(...)</em></li>{% endif %} </ul> </div>
-             {# O elif que mostrava "Nenhuma nova entrega" foi REMOVIDO #}
             {% endif %}
 
-            {# Bloco de Inventário (Existente - CORRIGIDO para aparecer só aqui) #}
             <div class="card mb-3 bg-light border-secondary">
                 <div class="card-header bg-secondary text-white" id="inventoryHeader" role="button" data-bs-toggle="collapse" data-bs-target="#collapseInventory" aria-expanded="false" aria-controls="collapseInventory" style="cursor: pointer;">
                    Inventário (Exemplos)
@@ -151,7 +133,7 @@
                 </div>
             </div>
 
-            {# --- 4.2: Estrutura Correta e ÚNICA de Abas para Análises --- #}
+            {# --- ESTRUTURA DE ABAS RESTAURADA COM LOJA ISOLADA --- #}
             <ul class="nav nav-tabs mt-4" id="analysisTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="projection-tab" data-bs-toggle="tab" data-bs-target="#projection-tab-pane" type="button" role="tab" aria-controls="projection-tab-pane" aria-selected="true">
@@ -159,18 +141,15 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    {# Esta é a aba original da Loja Sazonal #}
                     <button class="nav-link" id="shop-tab" data-bs-toggle="tab" data-bs-target="#shop-tab-pane" type="button" role="tab" aria-controls="shop-tab-pane" aria-selected="false">
                        <i class="bi bi-shop me-1"></i> Loja Sazonal
                     </button>
                 </li>
+                {# NOVA ABA PRINCIPAL: FONTES DE TOKENS #}
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="deliveries-tab" data-bs-toggle="tab" data-bs-target="#deliveries-tab-pane" type="button" role="tab" aria-controls="deliveries-tab-pane" aria-selected="false">
-                       <i class="bi bi-archive me-1"></i> Histórico de Entregas
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                   <button class="nav-link" id="bounties-tab" data-bs-toggle="tab" data-bs-target="#bounties-tab-pane" type="button" role="tab" aria-controls="bounties-tab-pane" aria-selected="false">
-                       <i class="bi bi-list-check me-1"></i> Tarefas (Bounties)
+                   <button class="nav-link" id="token-sources-main-tab" data-bs-toggle="tab" data-bs-target="#token-sources-main-tab-pane" type="button" role="tab" aria-controls="token-sources-main-tab-pane" aria-selected="false">
+                       <i class="bi bi-moisture me-1"></i> Fontes de Tokens
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -182,49 +161,65 @@
 
             <div class="tab-content pt-3" id="analysisTabsContent">
                 {# Painel Projeções #}
-                <div class="tab-pane show active" id="projection-tab-pane" role="tabpanel" aria-labelledby="projection-tab" tabindex="0">
+                <div class="tab-pane fade show active" id="projection-tab-pane" role="tabpanel" aria-labelledby="projection-tab" tabindex="0">
                     <h3 class="text-primary mb-3">Calculadora de Tickets <span class="badge bg-primary">{{ token_name|default('Sazonal') }}</span></h3>
                     <p><i>(Interface da calculadora e projeções será implementada aqui...)</i></p>
                 </div>
-                {# Conteúdo da loja REMOVIDO daqui #}
-                <div class="tab-pane" id="shop-tab-pane" role="tabpanel" aria-labelledby="shop-tab" tabindex="0">
-                </div>
-                {# Painel Histórico #}
-                <div class="tab-pane" id="deliveries-tab-pane" role="tabpanel" aria-labelledby="deliveries-tab" tabindex="0">
-                    {% include '_deliveries_content.html' %}
-                 </div>
-                {# Painel Tarefas #}
-                <div class="tab-pane" id="bounties-tab-pane" role="tabpanel" aria-labelledby="bounties-tab" tabindex="0">
-                   {% include '_bounties_content.html' %}
-                </div>
 
-                {# Painel Calendario Potencial #}
-                <div class="tab-pane" id="potential-calendar-tab-pane" role="tabpanel" aria-labelledby="potential-calendar-tab" tabindex="0">
-                       {% include '_season_potential_calendar.html' with context %}
+                {# Painel da Loja Sazonal (fica vazio, conteúdo é mostrado em #results-area-shop via JS) #}
+                <div class="tab-pane fade" id="shop-tab-pane" role="tabpanel" aria-labelledby="shop-tab" tabindex="0">
+                    {# Este painel permanece para ativar a lógica JS, mas o conteúdo visual principal é em #results-area-shop #}
+                    {# Você pode colocar um placeholder aqui se quiser, ou deixar vazio. #}
+                   
                 </div>
-
                 
+                {# NOVO PAINEL PARA FONTES DE TOKENS COM SUB-ABAS #}
+                <div class="tab-pane fade" id="token-sources-main-tab-pane" role="tabpanel" aria-labelledby="token-sources-main-tab" tabindex="0">
+                    <ul class="nav nav-pills mb-3" id="tokenSourcesSubTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="deliveries-sub-tab" data-bs-toggle="tab" data-bs-target="#deliveries-sub-tab-pane" type="button" role="tab" aria-controls="deliveries-sub-tab-pane" aria-selected="true">
+                                <i class="bi bi-archive me-1"></i> Histórico de Entregas
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                           <button class="nav-link" id="bounties-sub-tab" data-bs-toggle="tab" data-bs-target="#bounties-sub-tab-pane" type="button" role="tab" aria-controls="bounties-sub-tab-pane" aria-selected="false">
+                               <i class="bi bi-list-check me-1"></i> Tarefas (Bounties)
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="tokenSourcesSubTabsContent">
+                        <div class="tab-pane fade show active" id="deliveries-sub-tab-pane" role="tabpanel" aria-labelledby="deliveries-sub-tab" tabindex="0">
+                            {% include '_deliveries_content.html' %}
+                         </div>
+                        <div class="tab-pane fade" id="bounties-sub-tab-pane" role="tabpanel" aria-labelledby="bounties-sub-tab" tabindex="0">
+                           {% include '_bounties_content.html' %}
+                        </div>
+                    </div>
+                </div>
+
+                {# Painel Calendário Potencial #}
+                <div class="tab-pane fade" id="potential-calendar-tab-pane" role="tabpanel" aria-labelledby="potential-calendar-tab" tabindex="0">
+                   {% include '_season_potential_calendar.html' with context %}
+                </div>
             </div>
-            {# --- Fim da Estrutura Correta de Abas --- #}
+            {# --- Fim da Estrutura de Abas --- #}
             
+            {# Esta div é usada para exibir o conteúdo da loja quando a aba "Loja Sazonal" é clicada, via JavaScript #}
             <div id="results-area-shop" class="d-none">
                 {% include '_shop_content.html' %}
             </div>
 
-
-         </div> {# Fim da div que adiciona border-top e padding #}
+         </div> 
 
     {% elif farm_id_submitted and not error_message %}
-         {# Adiciona border-top aqui quando há aviso #}
          <div class="pt-0 border-top">
             <div class="alert alert-warning" role="alert">
                 Não foram encontrados dados detalhados para o Farm ID {{ farm_id_submitted }}. Verifique o ID ou tente novamente mais tarde.
             </div>
          </div>
-    {% endif %} {# Fim do if/elif/else principal da área de resultados #}
+    {% endif %} 
 
-</div> {# Fim da #results-area #}
-
+</div> 
 
 {% endblock %}
 

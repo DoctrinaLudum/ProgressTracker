@@ -390,3 +390,64 @@ main.container {
 .calendar-table tr.highlight-purchase-day.week-odd td {
     background-color: #f0f8ff; /* AliceBlue, um tom diferente para compra em semana ímpar */
 }
+
+/* ==========================================================================
+   (Nova Seção ou Adicionar à Seção de Abas Existente)
+   10. ESTILOS DE SUB-ABAS
+   ========================================================================== */
+
+/* Estilo geral para a barra de navegação das sub-abas */
+#token-sources-main-tab-pane .nav-pills {
+    background-color: #f8f9fa; /* Um fundo cinza claro para a barra de sub-abas */
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem !important; /* Garante a margem inferior */
+}
+
+/* Estilo para os links (botões) das sub-abas */
+#token-sources-main-tab-pane .nav-pills .nav-link {
+    color: #495057; /* Cor de texto mais escura para links não ativos */
+    background-color: transparent;
+    border: 1px solid transparent; /* Para manter o layout consistente com o ativo */
+    margin-right: 0.25rem;
+    padding: 0.5rem 0.8rem; /* Ajuste o padding se necessário */
+    font-size: 0.9em; /* Ligeiramente menor que as abas principais */
+}
+
+/* Estilo para a sub-aba ATIVA */
+#token-sources-main-tab-pane .nav-pills .nav-link.active {
+    color: #fff; /* Texto branco */
+    background-color: #7fb1fcc5; /* Azul primário do Bootstrap (mesma cor da aba principal ativa) */
+    /* OU uma cor secundária: */
+    /* background-color: #5bc0de; */ /* Exemplo: um azul mais claro (Bootstrap 'info') */
+    /* background-color: #6c757d; */ /* Exemplo: um cinza (Bootstrap 'secondary') */
+    border-color: #0d6efd; /* Borda da mesma cor do fundo */
+}
+
+/* Estilo para o hover nas sub-abas não ativas */
+#token-sources-main-tab-pane .nav-pills .nav-link:not(.active):hover {
+    background-color: #e9ecef; /* Cinza claro para hover */
+    border-color: #dee2e6;
+}
+
+/* Estilo para o conteúdo do painel das sub-abas */
+#token-sources-main-tab-pane .tab-content {
+    padding-top: 1rem; /* Espaço entre as sub-abas e o conteúdo delas */
+}
+
+/* Estilo para a ABA PRINCIPAL ATIVA */
+#analysisTabs .nav-link.active {
+    color: #fff; /* Texto branco */
+    background-color: #0d6efd; /* Azul primário do Bootstrap */
+    border-color: #0d6efd #0d6efd #fff; /* Ajusta as bordas para o efeito de aba "levantada" */
+}
+
+/* Garante que os links das abas principais não ativos tenham a cor padrão */
+#analysisTabs .nav-link {
+    color: #0d6efd; /* Cor de link azul padrão do Bootstrap */
+}
+
+#analysisTabs .nav-link:not(.active):hover {
+    border-color: #e9ecef #e9ecef #dee2e6; /* Cor de borda padrão do Bootstrap para hover */
+    isolation: isolate; /* Necessário para o z-index funcionar corretamente com a borda da aba ativa */
+}
