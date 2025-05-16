@@ -281,3 +281,28 @@ $(document).ready(function() {
     // --- FIM Handler Botão Simular ---
 
 }); // Fim $(document).ready geral
+
+
+// --- Lógica para o Botão Voltar ao Topo ---
+document.addEventListener('DOMContentLoaded', function() {
+    var scrollTopButton = document.getElementById("scrollTopBtn");
+
+    if (scrollTopButton) { // Verifica se o botão existe na página
+        window.onscroll = function() {
+            scrollFunction();
+        };
+
+        function scrollFunction() {
+            if (document.body.scrollTop > 100 || document.documentElement.scrollTop > 100) {
+                scrollTopButton.style.display = "flex"; // Alterado de "block" para "flex"
+            } else if (scrollTopButton.style.display !== "none") { // Evita redefinir se já estiver none
+                scrollTopButton.style.display = "none";
+            }
+        }
+    }
+});
+
+// Esta função pode ser global, pois é chamada pelo onclick no HTML
+function scrollToTop() {
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}

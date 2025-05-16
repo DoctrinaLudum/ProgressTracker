@@ -21,6 +21,22 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_item_ids(BASE_DIR)
 
+# --- Inicialização de dados globais (calculados/carregados uma vez) ---
+log.info("Inicializando dados globais da aplicação...")
+
+GLOBAL_SEASONAL_TOKEN_NAME = getattr(config, 'SEASONAL_TOKEN_NAME', 'Ticket Sazonal')
+GLOBAL_APP_VERSION = getattr(config, 'APP_VERSION', 'N/A')
+GLOBAL_SHOP_ITEMS = getattr(config, 'SEASONAL_SHOP_ITEMS', {})
+GLOBAL_SHOP_ITEMS_TICKETS = {
+    nome: dados for nome, dados in GLOBAL_SHOP_ITEMS.items() if dados.get('currency') == 'ticket'
+}
+TAXA_MEDIA_DIARIA_PLACEHOLDER = 10.0 # Usado como fallback
+
+log.info("Gerando calendário potencial da temporada (uma vez)...")
+GLOBAL_POTENTIAL_CALENDAR_DATA = season_calendar_simulator.generate_max_potential_season_calendar()
+GLOBAL_SIM_BUFF_PRIORITY_LIST = season_calendar_simulator.SIM_BUFF_ITEM_PURCHASE_PRIORITY
+log.info("Dados globais inicializados.")
+
 @app.route('/healthz')
 def healthz():
     # Você pode adicionar verificações mais complexas aqui se necessário
@@ -38,12 +54,9 @@ def index():
     # Variáveis que podem ser preenchidas por GET ou antes do processamento do POST
     error_message = None
     farm_id_submitted = None
-    analise_tokens_deliveries = None 
-    seasonal_token_name = getattr(config, 'SEASONAL_TOKEN_NAME', 'Ticket Sazonal')
-    app_version = getattr(config, 'APP_VERSION', 'N/A')
-    itens_loja_completo = getattr(config, 'SEASONAL_SHOP_ITEMS', {})
-    itens_loja_tickets = {nome: dados for nome, dados in itens_loja_completo.items() if dados.get('currency') == 'ticket'}
-    taxa_media_diaria_placeholder = 10.0 # Usado no GET e como fallback
+    analise_tokens_deliveries = None
+    # Usar as globais para itens que não mudam por request:
+    # seasonal_token_name, app_version, itens_loja_completo, itens_loja_tickets, taxa_media_diaria_placeholder
     current_year = datetime.now().year
     
     # Variáveis que serão preenchidas pelo processamento do POST
@@ -58,11 +71,6 @@ def index():
     chores_data_for_template = [] # Inicializa chores_data para GET e POST
     bumpkin_image_url = None
 
-    # Pega a lista de prioridade do módulo do simulador para passar ao template
-    potential_calendar_data = season_calendar_simulator.generate_max_potential_season_calendar()
-    sim_buff_priority_list = season_calendar_simulator.SIM_BUFF_ITEM_PURCHASE_PRIORITY
-
-
     # --- Processamento do POST (Busca de Fazenda) ---
     if request.method == 'POST':
         farm_id_submitted = request.form.get('farm_id')
@@ -73,16 +81,16 @@ def index():
         else:
             if not database_utils.db:
                 error_message = "Erro interno: A conexão com o banco de dados não está disponível. Tente novamente mais tarde."
-                return render_template('index.html', error_message=error_message, farm_id_submitted=farm_id_submitted,
-                                        token_name=seasonal_token_name, shop_items_all=itens_loja_completo,
-                                        avg_daily_rate=taxa_media_diaria_placeholder, current_year=current_year,
-                                        app_version=app_version, config=config, 
+                return render_template('index.html', error_message=error_message, farm_id_submitted=farm_id_submitted, # noqa: E501
+                                        token_name=GLOBAL_SEASONAL_TOKEN_NAME, shop_items_all=GLOBAL_SHOP_ITEMS,
+                                        avg_daily_rate=TAXA_MEDIA_DIARIA_PLACEHOLDER, current_year=current_year,
+                                        app_version=GLOBAL_APP_VERSION, config=config,
                                         # Passando os valores inicializados/padrão
                                         farm_data=farm_data_display, npc_rates=npc_completion_rates, analise_tokens=analise_tokens_deliveries,
                                         live_completions=live_completions, live_tokens=live_tokens, live_cost_sfl=live_cost_sfl,
-                                        delivery_bonus=total_delivery_bonus, active_bonus_details=active_bonus_details,
+                                        delivery_bonus=total_delivery_bonus, active_bonus_details=active_bonus_details, # noqa: E501
                                         bounties_data=bounties_data, bumpkin_image_url=bumpkin_image_url,
-                                        shop_items_ticket=itens_loja_tickets)
+                                        shop_items_ticket=GLOBAL_SHOP_ITEMS_TICKETS)
 
             api_response_data, error_message_api = get_farm_data_full(farm_id_submitted) 
             error_message = error_message_api # Erro da API tem prioridade
@@ -148,7 +156,7 @@ def index():
         chores_data_for_template = []
 
     # ---> Define a taxa média diária efetiva para exibição e uso ---
-    effective_avg_daily_rate = taxa_media_diaria_placeholder # Default numérico
+    effective_avg_daily_rate = TAXA_MEDIA_DIARIA_PLACEHOLDER # Default numérico
     avg_daily_rate_status = 'placeholder' # Default textual para o status da taxa
 
     if analise_tokens_deliveries and isinstance(analise_tokens_deliveries, dict):
@@ -220,17 +228,17 @@ def index():
                            bounties_data=bounties_data,
                            chores_data=chores_data_for_template, # Passa chores_data para o template
                            # Dados Gerais e de Configuração
-                           token_name=seasonal_token_name,
+                           token_name=GLOBAL_SEASONAL_TOKEN_NAME,
                            config=config, # Passa config para acesso a constantes no template
-                           shop_items_all=itens_loja_completo,
-                           shop_items_ticket=itens_loja_tickets, # Apenas itens de ticket (se necessário)
+                           shop_items_all=GLOBAL_SHOP_ITEMS,
+                           shop_items_ticket=GLOBAL_SHOP_ITEMS_TICKETS,
                            avg_daily_rate=effective_avg_daily_rate, # Placeholder inicial
                            avg_daily_rate_status=avg_daily_rate_status,
                            current_year=current_year,
-                           app_version=app_version,
+                           app_version=GLOBAL_APP_VERSION,
                            bumpkin_image_url=bumpkin_image_url,
-                           potential_calendar=potential_calendar_data,
-                           sim_buff_item_purchase_priority=sim_buff_priority_list
+                           potential_calendar=GLOBAL_POTENTIAL_CALENDAR_DATA,
+                           sim_buff_item_purchase_priority=GLOBAL_SIM_BUFF_PRIORITY_LIST
                            )
 
 # --- Rota AJAX para Calcular Projeção Sazonal ---
@@ -253,11 +261,10 @@ def calculate_projection():
         log.warning("Requisição AJAX sem 'item_name'.")
         return jsonify({"success": False, "error": "Nome do item não fornecido"}), 400
 
-    # Carrega itens da loja do config
-    itens_loja_completo = getattr(config, 'SEASONAL_SHOP_ITEMS', {})
-    if not itens_loja_completo:
+    # Usa a variável global para itens da loja
+    if not GLOBAL_SHOP_ITEMS:
          log.error("Configuração SEASONAL_SHOP_ITEMS não encontrada ou vazia em config.py")
-         return jsonify({"success": False, "error": "Configuração interna da loja não encontrada"}), 500
+         return jsonify({"success": False, "error": "Configuração interna da loja não encontrada."}), 500
 
     # <<< ATUALIZA A CHAMADA PARA determine_active_daily_rate >>>
     # Passa a taxa simulada, a taxa histórica recebida do JS, o logger e o placeholder global.
@@ -265,7 +272,7 @@ def calculate_projection():
         simulated_rate_str,         # Taxa do campo de simulação (pode ser None)
         historical_rate_from_js,    # Taxa do data-attribute (pode ser None)
         log,
-        default_placeholder_rate=10.0 # Placeholder global se nenhuma das outras for válida/fornecida
+        default_placeholder_rate=TAXA_MEDIA_DIARIA_PLACEHOLDER
     )
     # <<< FIM DA ATUALIZAÇÃO DA CHAMADA >>>
 
@@ -280,7 +287,7 @@ def calculate_projection():
         # <<< CHAMADA PARA A NOVA FUNÇÃO DE CÁLCULO DETALHADO >>>
         projection_details = route_helpers.get_projection_calculation_details(
             item_name,
-            itens_loja_completo,
+            GLOBAL_SHOP_ITEMS, # Usa a variável global
             marked_item_names,
             rate_to_use,
             analysis, # Passa o módulo analysis
@@ -304,7 +311,7 @@ def calculate_projection():
             "projected_days": dias_projetados if dias_projetados != float('inf') else None,
             "avg_daily_rate_used": rate_to_use, # Esta é a taxa efetivamente usada no cálculo
             "is_simulation": is_simulation, # Usa o 'simulated_rate' original para esta flag
-            "token_name": getattr(config, 'SEASONAL_TOKEN_NAME', 'Ticket'),
+            "token_name": GLOBAL_SEASONAL_TOKEN_NAME,
             "unlock_path_items": unlock_items_list,
             "base_item_cost": custo_item_base,
             "calculated_unlock_cost": custo_desbloqueio_calculado if custo_desbloqueio_calculado != float('inf') else None,

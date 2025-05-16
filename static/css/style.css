@@ -451,3 +451,31 @@ main.container {
     border-color: #e9ecef #e9ecef #dee2e6; /* Cor de borda padrão do Bootstrap para hover */
     isolation: isolate; /* Necessário para o z-index funcionar corretamente com a borda da aba ativa */
 }
+
+/* ==========================================================================
+   11. ESTILOS BOTÃO VOLTAR AO TOPO
+   ========================================================================== */
+
+#scrollTopBtn {
+    display: none; /* Começa escondido. O JavaScript controlará a visibilidade (mudando para 'flex'). */
+    position: fixed;
+    bottom: 30px; /* Distância da parte inferior */
+    right: 30px;  /* Distância da direita */
+    z-index: 9999; /* Garante que fique sobre a maioria dos outros elementos */
+    border: none;
+    outline: none;
+    background-color: rgba(13, 110, 253, 0.65); /* Cor primária do Bootstrap com 65% de opacidade */
+    color: white; /* Cor do ícone */
+    cursor: pointer;
+    width: 50px;   /* Largura do botão */
+    height: 50px;  /* Altura do botão (igual à largura para ser um círculo) */
+    border-radius: 50%; /* Torna o botão circular */
+    font-size: 24px;    /* Tamanho do ícone dentro do botão */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); /* Sombra suave */
+    transition: background-color 0.3s ease; /* Transição suave para a cor de fundo */
+    align-items: center;     /* Centraliza o ícone verticalmente (requer display: flex) */
+    justify-content: center; /* Centraliza o ícone horizontalmente (requer display: flex) */
+}
+#scrollTopBtn:hover {
+    background-color: #0d6efd; /* Cor primária do Bootstrap, sólida (100% opacidade) */
+}
