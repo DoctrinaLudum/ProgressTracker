@@ -3,23 +3,43 @@ import os
 import logging
 import time
 import requests
+import json
 import config # Importa suas configurações (BASE_DELIVERY_REWARDS)
 from datetime import datetime, timedelta # timedelta pode ser útil
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 # Import específico para timestamp do servidor
 from google.cloud.firestore_v1 import SERVER_TIMESTAMP 
+from google.cloud import firestore
+from google.oauth2 import service_account
 
 # --- Configuração ---
 log = logging.getLogger(__name__)
 
-# --- Inicialização do Cliente Firestore ---
+db = None
 try:
-    db = firestore.Client()
-    log.info(f"Cliente Firestore inicializado para projeto: {db.project}")
+    # 1. Tenta carregar credenciais a partir da variável de ambiente (para o Render)
+    google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+
+    if google_creds_json_str:
+        log.info("Tentando inicializar Firestore com GOOGLE_CREDENTIALS_JSON (Render)...")
+        creds_json = json.loads(google_creds_json_str)
+        credentials = service_account.Credentials.from_service_account_info(creds_json)
+        db = firestore.Client(credentials=credentials, project=creds_json.get('project_id')) # Especificar o project_id é uma boa prática
+        log.info(f"Cliente Firestore inicializado com sucesso para o projeto {creds_json.get('project_id')} usando GOOGLE_CREDENTIALS_JSON.")
+    else:
+        # 2. Se a variável de ambiente não estiver definida, tenta o método padrão (para desenvolvimento local)
+        # Este método geralmente usa a variável de ambiente GOOGLE_APPLICATION_CREDENTIALS
+        # que aponta para o caminho do seu arquivo .json.
+        log.info("GOOGLE_CREDENTIALS_JSON não encontrada. Tentando inicializar Firestore com credenciais padrão (desenvolvimento local)...")
+        # O construtor vazio firestore.Client() tentará encontrar GOOGLE_APPLICATION_CREDENTIALS
+        # ou usará credenciais do ambiente se você estiver rodando gcloud auth application-default login, etc.
+        db = firestore.Client() # Você pode explicitamente passar o project_id aqui também se necessário: firestore.Client(project="sfl-tracker-app")
+        log.info(f"Cliente Firestore inicializado com credenciais padrão. Projeto: {db.project if db else 'Não determinado'}")
+
 except Exception as e:
-    log.exception("Falha CRÍTICA ao inicializar cliente Firestore! Verifique as credenciais.")
-    db = None
+    log.exception(f"Falha CRÍTICA ao inicializar cliente Firestore: {e}")
+    db = None # Garante que db é None se a inicialização falhar
 
 # --- Nomes das Coleções ---
 SNAPSHOTS_COLLECTION = "daily_snapshots_v2" 

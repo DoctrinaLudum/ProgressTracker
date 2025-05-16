@@ -1,0 +1,123 @@
+{# templates/_season_potential_calendar.html #}
+{% if potential_calendar %}
+<div class="card mt-0 shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <i class="bi bi-calendar-event me-1"></i> Calendário de Potencial Máximo da Temporada ({{ config.SEASONAL_TOKEN_NAME }})
+    </div>
+    <div class="card-body">
+        <p class="small text-muted mb-3">
+            Este calendário simula o ganho máximo de {{ config.SEASONAL_TOKEN_NAME }} se todas as atividades fossem completadas com 100% de eficiência,
+            considerando um jogador com VIP ativo (bônus de +{{ config.SEASONAL_DELIVERY_BUFFS.vip.bonus_value if config.SEASONAL_DELIVERY_BUFFS and 'vip' in config.SEASONAL_DELIVERY_BUFFS else 'N/A' }} {{ config.SEASONAL_TOKEN_NAME }} por entrega/chore, onde aplicável).
+            As "compras virtuais" de itens de buff e desbloqueios de tier são feitas assim que o saldo permite, seguindo a prioridade definida.
+            Lembre-se que os ganhos de atividades (Entregas, Chores, Bounties) iniciam em {{ config.DATE_ACTIVITIES_START_YIELDING_TOKENS }}.
+            Os dias de <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill">Entrega 2x</span> são <strong>estimados</strong>
+            {% if config.DOUBLE_DELIVERY_INTERVAL_DAYS is defined and config.DOUBLE_DELIVERY_DATE is defined %}
+                (aproximadamente a cada {{ config.DOUBLE_DELIVERY_INTERVAL_DAYS }} dias a partir de {{ config.DOUBLE_DELIVERY_DATE }})
+            {% elif config.DOUBLE_DELIVERY_AVERAGE_INTERVAL_DAYS is defined and config.DOUBLE_DELIVERY_START_DATE is defined %}
+                 (aproximadamente a cada {{ config.DOUBLE_DELIVERY_AVERAGE_INTERVAL_DAYS }} dias a partir de {{ config.DOUBLE_DELIVERY_START_DATE }})
+            {% else %}
+                (com base em um intervalo médio configurado)
+            {% endif %}
+            e podem não coincidir exatamente com as datas reais do evento no jogo.
+        </p>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover table-bordered calendar-table" style="font-size: 0.78rem; min-width: 1200px;">
+                <thead class="table-dark sticky-top" style="z-index: 10;">
+                    <tr>
+                        <th scope="col" class="calendar-date-col">Data</th>
+                        <th scope="col">Dia Sem.</th>
+                        <th scope="col">Dia S.</th>
+                        <th scope="col">Saldo Inicial</th>
+                        <th scope="col">Baú</th>
+                        <th scope="col">Entr. (Base)</th>
+                        <th scope="col">Chores (Base)</th>
+                        <th scope="col">B.Mega (Base)</th>
+                        <th scope="col">B.Anim (Base)</th>
+                        <th scope="col">Bônus 100% B.Mega</th>
+                        <th scope="col" title="Bônus total de VIP no dia">VIP<br><span class="fw-normal small">(Bônus)</span></th>
+                        {% for buff_item_name in sim_buff_item_purchase_priority %}
+                            <th scope="col" title="Bônus total de {{ buff_item_name }} no dia">
+                                {{ buff_item_name | replace(" ", "<br>") | safe }}<br><span class="fw-normal small">(Bônus)</span>
+                            </th>
+                        {% endfor %}
+                        <th scope="col" class="bg-success text-white">Total Ganhos Dia</th>
+                        <th scope="col" class="calendar-purchases-col">Compras Virtuais</th>
+                        <th scope="col">Custo</th>
+                        <th scope="col" class="bg-info text-white">Saldo Final</th>
+                        <th scope="col" class="calendar-buffs-col">Buffs Ativos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day_data in potential_calendar %}
+                    <tr class="week-{{ 'even' if day_data.game_week_id % 2 == 0 else 'odd' }} {% if day_data.purchases_today %}highlight-purchase-day fw-bold{% endif %}">
+                        <td class="calendar-date-col">{{ day_data.date_display }}</td>
+                        <td>{{ day_data.day_of_week_str }}</td>
+                        <td>{{ day_data.day_in_season }}</td>
+                        <td>{{ "%.0f"|format(day_data.balance_start_day) }}</td>
+                        <td>{{ "%.0f"|format(day_data.gains_chest) if day_data.gains_chest > 0 else '-' }}</td>
+                        <td>
+                            {{ "%.0f"|format(day_data.gains_deliveries_base) if day_data.gains_deliveries_base > 0 else '-' }}
+                            {% if day_data.is_double_delivery_day %}
+                                <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill ms-1" title="Estimativa de Entregas em Dobro neste dia!">2x</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.0f"|format(day_data.gains_chores_base) if day_data.gains_chores_base > 0 else '-' }}</td>
+                        <td>{{ "%.0f"|format(day_data.gains_megaboard_base) if day_data.gains_megaboard_base > 0 else '-' }}</td>
+                        <td>{{ "%.0f"|format(day_data.gains_animals_base) if day_data.gains_animals_base > 0 else '-' }}</td>
+                        <td>{{ "%.0f"|format(day_data.gains_megaboard_completion_bonus) if day_data.gains_megaboard_completion_bonus > 0 else '-' }}</td>
+                        {% set vip_tooltip_parts = [] %}
+                        {% if day_data.gains_deliveries_vip_bonus %}{% set _ = vip_tooltip_parts.append("Entregas: +" + "%.0f"|format(day_data.gains_deliveries_vip_bonus|float)) %}{% endif %}
+                        {% if day_data.gains_chores_vip_bonus %}{% set _ = vip_tooltip_parts.append("Chores: +" + "%.0f"|format(day_data.gains_chores_vip_bonus|float)) %}{% endif %}
+                        <td {% if vip_tooltip_parts %}data-bs-toggle="tooltip" data-bs-placement="top" title="{{ vip_tooltip_parts|join('; ') }}"{% endif %}>
+                            {{ "%.0f"|format(day_data.gains_vip_total_bonus) if day_data.gains_vip_total_bonus > 0 else '-' }}
+                        </td>
+                        {% for buff_item_name in sim_buff_item_purchase_priority %}
+                            {% set total_bonus_for_item_today = day_data.item_specific_bonus_totals.get(buff_item_name, 0) %}
+                            {% set item_bonus_details_today = day_data.gains_item_bonuses_detailed.get(buff_item_name, {}) %}
+                            {% set tooltip_title_parts = [] %}
+                            {% if item_bonus_details_today.deliveries %}{% set _ = tooltip_title_parts.append("Entregas: +" + "%.0f"|format(item_bonus_details_today.deliveries|float)) %}{% endif %}
+                            {% if item_bonus_details_today.chores %}{% set _ = tooltip_title_parts.append("Chores: +" + "%.0f"|format(item_bonus_details_today.chores|float)) %}{% endif %}
+                            {% if item_bonus_details_today.megaboard_bounties %}{% set _ = tooltip_title_parts.append("B.Mega: +" + "%.0f"|format(item_bonus_details_today.megaboard_bounties|float)) %}{% endif %}
+                            {% if item_bonus_details_today.animal_bounties %}{% set _ = tooltip_title_parts.append("B.Anim: +" + "%.0f"|format(item_bonus_details_today.animal_bounties|float)) %}{% endif %}
+                            <td {% if tooltip_title_parts %}data-bs-toggle="tooltip" data-bs-placement="top" title="{{ tooltip_title_parts|join('; ') }}"{% endif %}>
+                                {{ "%.0f"|format(total_bonus_for_item_today) if total_bonus_for_item_today > 0 else '-' }}
+                            </td>
+                        {% endfor %}
+                        <td class="fw-bold">{{ "%.0f"|format(day_data.total_gains_today) }}</td>
+                        <td class="calendar-purchases-col">
+                            {% for purchase in day_data.purchases_today %}
+                                <span class="badge 
+                                    {% if purchase.type == 'buff_item_sfl' %}bg-success-subtle text-success-emphasis border border-success-subtle {# Nova cor para item SFL #}
+                                    {% elif purchase.type == 'buff_item_token' %}bg-info-subtle text-info-emphasis border border-info-subtle
+                                    {% elif 'unlock' in purchase.type %}bg-warning-subtle text-warning-emphasis border border-warning-subtle
+                                    {% else %}bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle{% endif %} me-1 rounded-pill d-block mb-1">
+                                    {{ purchase.name }}
+                                </span>
+                            {% endfor %}
+                        </td>
+                        {# MODIFICAÇÃO AQUI para exibir "(SFL)" na coluna Custo #}
+                        <td>
+                            {% for purchase in day_data.purchases_today %}
+                                <span class="text-danger d-block mb-1">
+                                    (-{{ "%.0f"|format(purchase.cost) }}
+                                    {% if purchase.type == 'buff_item_sfl' %}
+                                        <span class="currency-sfl" style="font-size: 0.8em;">Flower</span>
+                                    {% endif %})
+                                </span>
+                            {% endfor %}
+                        </td>
+                        <td class="fw-bold">{{ "%.0f"|format(day_data.balance_end_day) }}</td>
+                        <td class="calendar-buffs-col small">{{ day_data.active_buffs_str | replace(",", ",\n") if day_data.active_buffs_str else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning mt-3" role="alert">
+    Os dados do Calendário de Potencial Máximo ainda não estão disponíveis. Se você já buscou um Farm ID, esta funcionalidade é independente e mostra um cenário ideal para a temporada.
+    Pode haver uma configuração pendente ou a simulação ainda não foi executada.
+</div>
+{% endif %}

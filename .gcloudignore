@@ -1,0 +1,44 @@
+# Arquivos e pastas do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.nox/
+.coverage
+.cache/
+nosetests.xml
+coverage.xml
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Arquivos do Git
+.git/
+.gitignore
+.gitattributes
+
+# Arquivos de IDE e sistema operacional
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Arquivos de log e temporários
+*.log
+local_settings.py
+
+# Chaves de serviço (se você prefere não fazer deploy delas)
+# Se você for depender da conta de serviço padrão do App Engine,
+# é uma boa ideia ignorar o .json para não enviá-lo desnecessariamente.
+sfl-tracker-app-84739e970dda.json # << ATENÇÃO AQUI
+
+# Outros arquivos específicos do seu projeto que não devem ir para o servidor
+# ex: my_local_database.sqlite3
