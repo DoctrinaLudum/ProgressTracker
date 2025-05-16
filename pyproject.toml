@@ -1,14 +1,16 @@
 [tool.poetry]
-name = "python-template"
+name = "ProgressTracker"
 version = "0.1.0"
-description = ""
-authors = ["Your Name <you@example.com>"]
+description = "Um aplicativo web Python construído com Flask, utilizando Google Cloud Firestore como banco de dados e Gunicorn como servidor WSGI."
+authors = ["Doctrina"]
 
 [tool.poetry.dependencies]
-python = ">=3.11.0,<3.12"
+python = "^3.11" # Ou sua versão do Python
 flask = "^3.0.0"
 gunicorn = "^21.2.0"
 requests = "^2.32.3"
+google-cloud-firestore = "^2.15.0" # Use a versão que precisa
+google-auth = "^2.20.0" # Use a versão que precisa
 click = "^8.1.8"
 sift-stack-py = "^0.5.2"
 
