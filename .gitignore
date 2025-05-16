@@ -28,6 +28,9 @@ Thumbs.db
 
 # Service account keys / Secrets (IMPORTANTE!)
 *.json
+# MAS NÃO ignora bumpkin_data.json (importante para a aplicação)
+!bumpkin_data.json
+
 
 # Outros arquivos temporários ou de dependência (adicione se necessário)
 # *.log
