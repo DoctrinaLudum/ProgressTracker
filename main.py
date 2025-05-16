@@ -16,6 +16,12 @@ import season_calendar_simulator
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 log = logging.getLogger(__name__)
 
+@app.route('/healthz')
+def healthz():
+    # Você pode adicionar verificações mais complexas aqui se necessário
+    # (ex: checar conexão com banco de dados), mas para começar:
+    return "OK", 200 # Retorna uma resposta simples de sucesso
+
 # Inicialização do App Flask
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
