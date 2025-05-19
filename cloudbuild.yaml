@@ -1,0 +1,9 @@
+steps:
+  # Passo 1: Checkout do código do repositório
+  - name: 'gcr.io/cloud-builders/git'
+    args: ['clone', '${REPO_URL}', '.']
+
+  # Passo 2: Deploy da aplicação para o Google App Engine
+  - name: 'gcr.io/google-cloud-sdk'
+    entrypoint: 'gcloud'
+    args: ['app', 'deploy', '--project', '${PROJECT_ID}']
