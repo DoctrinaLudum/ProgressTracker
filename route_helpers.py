@@ -1,5 +1,7 @@
+from typing import Any, Dict, Optional
+
 import bumpkin_utils
-from typing import Optional, Dict, Any
+
 
 # ---> FUNÇÃO AUXILIAR PARA DETERMINAR TIPO DE ATIVIDADE DA BOUNTY <---
 def get_bounty_activity_type(bounty_data: Dict[str, Any], config_module: Any, logger: Any) -> Optional[str]:

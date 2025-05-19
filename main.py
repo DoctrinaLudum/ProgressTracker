@@ -1,16 +1,18 @@
 # main.py (Revisado e Polido)
-import os
-import logging
-from datetime import datetime, timedelta
-from flask import Flask, render_template, request, jsonify
-import config # Importa config inteiro
-import database_utils # Funções de DB (Firestore)
-import analysis # Funções de análise e cálculo
 import json
-from bumpkin_utils import load_item_ids, gerar_url_imagem_bumpkin
-from sunflower_api import get_farm_data_full
+import logging
+import os
+from datetime import datetime, timedelta
+
+from flask import Flask, jsonify, render_template, request
+
+import analysis  # Funções de análise e cálculo
+import config  # Importa config inteiro
+import database_utils  # Funções de DB (Firestore)
 import route_helpers
 import season_calendar_simulator
+from bumpkin_utils import gerar_url_imagem_bumpkin, load_item_ids
+from sunflower_api import get_farm_data_full
 
 # Configuração do Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -323,9 +325,49 @@ def calculate_projection():
         log.exception(f"Erro inesperado durante cálculo da projeção AJAX para {item_name}: {e}")
         return jsonify({"success": False, "error": "Erro interno ao calcular a projeção."}), 500
     
-# --- FIM ROTA AJAX ---
+# --- FIM ROTA AJAX PROJEÇÃO ---
 
+# --- NOVA ROTA AJAX PARA SIMULAR CALENDÁRIO CUSTOMIZADO ---
+@app.route('/simulate_custom_calendar', methods=['POST'])
+def simulate_custom_calendar_route():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "Requisição inválida."}), 400
 
+        user_selected_buffs = data.get('selected_buffs', [])
+        log.info(f"Recebida requisição para /simulate_custom_calendar com buffs: {user_selected_buffs}")
+
+        # Chamar a nova função do simulador
+        custom_calendar_data = season_calendar_simulator.generate_custom_season_calendar(
+            user_selected_buff_names=user_selected_buffs
+        )
+
+        if custom_calendar_data is not None: # Checa se não é None (pode ser lista vazia em caso de erro interno na simulação)
+            # Retorna os dados necessários para renderizar a tabela no frontend
+            # GLOBAL_SIM_BUFF_PRIORITY_LIST ainda é útil para definir as colunas de bônus na tabela
+            # mesmo que a lógica de compra seja diferente.
+            return jsonify({
+                "success": True,
+                "potential_calendar": custom_calendar_data,
+                "sim_buff_item_purchase_priority": GLOBAL_SIM_BUFF_PRIORITY_LIST, # Usa a global
+                "config": { # Envia apenas as configs necessárias para o template
+                    "SEASONAL_TOKEN_NAME": GLOBAL_SEASONAL_TOKEN_NAME, # Usa a global
+                    "SEASONAL_DELIVERY_BUFFS": getattr(config, 'SEASONAL_DELIVERY_BUFFS', {}),
+                    "DATE_ACTIVITIES_START_YIELDING_TOKENS": getattr(config, 'DATE_ACTIVITIES_START_YIELDING_TOKENS', None),
+                    "DOUBLE_DELIVERY_DATE": getattr(config, 'DOUBLE_DELIVERY_DATE', None),
+                    "DOUBLE_DELIVERY_INTERVAL_DAYS": getattr(config, 'DOUBLE_DELIVERY_INTERVAL_DAYS', None),
+                    "SIM_IDEAL_PLAYER_HAS_VIP": getattr(config, 'SIM_IDEAL_PLAYER_HAS_VIP', True), # Envia para o template
+                    "SIM_IDEAL_PLAYER_ACHIEVES_MEGA_BOUNTY_BONUS": getattr(config, 'SIM_IDEAL_PLAYER_ACHIEVES_MEGA_BOUNTY_BONUS', True) # Envia para o template
+                }
+            })
+        else:
+            log.error("Falha ao gerar calendário customizado a partir da rota (retorno None).")
+            return jsonify({"success": False, "error": "Falha ao gerar calendário customizado no servidor."}), 500
+    except Exception as e:
+        log.exception("Erro na rota /simulate_custom_calendar:")
+        return jsonify({"success": False, "error": f"Erro interno do servidor: {str(e)}"}), 500
+# --- FIM ROTA AJAX CALENDÁRIO CUSTOMIZADO ---
 # --- Bloco de Execução Principal (para desenvolvimento) ---
 if __name__ == '__main__':
     # Usa variável de ambiente para porta, ou default (ex: 8080 para Cloud Run, 5000 local)

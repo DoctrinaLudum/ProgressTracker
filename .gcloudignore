@@ -19,6 +19,7 @@ coverage.xml
 .installed.cfg
 *.egg
 MANIFEST
+.venv
 
 # Arquivos do Git
 .git/

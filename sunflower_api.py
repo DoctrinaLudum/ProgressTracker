@@ -1,6 +1,7 @@
 # sunflower_api.py
-import requests
 import logging
+
+import requests
 
 # Configuração do Logging para este módulo
 # É uma boa prática cada módulo ter seu próprio logger.

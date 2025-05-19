@@ -1,42 +1,44 @@
 # database_utils.py (Refatorado para Snapshot por Fazenda/Dia com Mapa de NPCs)
-import os
-import logging
-import time
-import requests
 import json
-import config # Importa suas configurações (BASE_DELIVERY_REWARDS)
-from datetime import datetime, timedelta # timedelta pode ser útil
+import logging
+import os
+import time
+from datetime import datetime, timedelta  # timedelta pode ser útil
+
+import requests
+from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import firestore
-from google.cloud.firestore_v1.base_query import FieldFilter
 # Import específico para timestamp do servidor
-from google.cloud.firestore_v1 import SERVER_TIMESTAMP 
-from google.cloud import firestore
+from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+from google.cloud.firestore_v1.base_query import FieldFilter
 from google.oauth2 import service_account
+
+import config  # Importa suas configurações (BASE_DELIVERY_REWARDS)
 
 # --- Configuração ---
 log = logging.getLogger(__name__)
 
 db = None
 try:
-    # 1. Tenta carregar credenciais a partir da variável de ambiente (para o Render)
-    google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+    # 1. Tenta inicializar o Firestore usando as credenciais padrão do Google Cloud (para o Google Cloud)
+    try:
+        log.info("Tentando inicializar Firestore com as credenciais padrão do Google Cloud...")
+        db = firestore.Client()
+        log.info(f"Cliente Firestore inicializado com sucesso usando as credenciais padrão. Projeto: {db.project if db else 'Não determinado'}")
+    except DefaultCredentialsError:
+        log.info("Credenciais padrão do Google Cloud não encontradas. Tentando carregar o arquivo de credenciais local...")
+        # 2. Se as credenciais padrão não forem encontradas, tenta carregar o arquivo localmente
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        credentials_path = os.path.join(base_dir, 'sfl-tracker-app-84739e970dda.json')
 
-    if google_creds_json_str:
-        log.info("Tentando inicializar Firestore com GOOGLE_CREDENTIALS_JSON (Render)...")
-        creds_json = json.loads(google_creds_json_str)
-        credentials = service_account.Credentials.from_service_account_info(creds_json)
-        db = firestore.Client(credentials=credentials, project=creds_json.get('project_id')) # Especificar o project_id é uma boa prática
-        log.info(f"Cliente Firestore inicializado com sucesso para o projeto {creds_json.get('project_id')} usando GOOGLE_CREDENTIALS_JSON.")
-    else:
-        # 2. Se a variável de ambiente não estiver definida, tenta o método padrão (para desenvolvimento local)
-        # Este método geralmente usa a variável de ambiente GOOGLE_APPLICATION_CREDENTIALS
-        # que aponta para o caminho do seu arquivo .json.
-        log.info("GOOGLE_CREDENTIALS_JSON não encontrada. Tentando inicializar Firestore com credenciais padrão (desenvolvimento local)...")
-        # O construtor vazio firestore.Client() tentará encontrar GOOGLE_APPLICATION_CREDENTIALS
-        # ou usará credenciais do ambiente se você estiver rodando gcloud auth application-default login, etc.
-        db = firestore.Client() # Você pode explicitamente passar o project_id aqui também se necessário: firestore.Client(project="sfl-tracker-app")
-        log.info(f"Cliente Firestore inicializado com credenciais padrão. Projeto: {db.project if db else 'Não determinado'}")
-
+        if os.path.exists(credentials_path):
+            log.info(f"Arquivo de credenciais encontrado em: {credentials_path}. Tentando inicializar Firestore...")
+            credentials = service_account.Credentials.from_service_account_file(credentials_path)
+            db = firestore.Client(credentials=credentials)
+            log.info(f"Cliente Firestore inicializado com sucesso usando o arquivo: {credentials_path}")
+        else:
+            log.error("Arquivo de credenciais local não encontrado.")
+            db = None # Garante que db seja None se a inicialização falhar
 except Exception as e:
     log.exception(f"Falha CRÍTICA ao inicializar cliente Firestore: {e}")
     db = None # Garante que db é None se a inicialização falhar

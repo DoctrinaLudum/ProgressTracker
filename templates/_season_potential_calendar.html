@@ -20,7 +20,46 @@
             {% endif %}
             e podem não coincidir exatamente com as datas reais do evento no jogo.
         </p>
-        <div class="table-responsive">
+                {# --- SEÇÃO DE CONTROLES PARA SIMULAÇÃO CUSTOMIZADA --- #}
+        <div id="customBuffSimulatorControls" class="mb-4 p-3 border rounded bg-light shadow-sm">
+            <h6 class="text-primary"><i class="bi bi-sliders me-1"></i>Simulador de Impacto de Buffs</h6>
+            <p class="small text-muted mb-2">
+                Selecione os buffs que você possui ou planeja adquirir para recalcular o calendário abaixo.
+                A simulação ainda considera o VIP global ({{ "Ativo" if config.SIM_IDEAL_PLAYER_HAS_VIP else "Inativo" }}) e o bônus de 100% do Megaboard ({{ "Ativo" if config.SIM_IDEAL_PLAYER_ACHIEVES_MEGA_BOUNTY_BONUS else "Inativo" }}).
+            </p>
+            {# Layout dos checkboxes ajustado para melhor distribuição #}
+            <div id="buffSelectionCheckboxes" class="row g-2 mb-3">
+                {% set delivery_buffs = config.SEASONAL_DELIVERY_BUFFS or {} %}
+                {% for buff_name, buff_data in delivery_buffs.items() %}
+                    {% if buff_name != 'vip' %} {# VIP é global na simulação e não selecionável aqui #}
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-3"> {# Define colunas por breakpoint #}
+                        <div class="form-check small">
+                            <input class="form-check-input custom-buff-checkbox" type="checkbox" value="{{ buff_name }}" id="buff_check_{{ buff_name|replace(' ', '_')|replace('"', '')|replace("'", "")|lower }}">
+                            <label class="form-check-label" for="buff_check_{{ buff_name|replace(' ', '_')|replace('"', '')|replace("'", "")|lower }}">
+                                {{ buff_name }}
+                                {% if buff_data.cost is defined and buff_data.currency %}
+                                    <span class="text-muted" style="font-size: 0.9em;">
+                                        ({{ buff_data.cost }}
+                                        {% if buff_data.currency == 'ticket' %}{{ config.SEASONAL_TOKEN_NAME | slice(0,1) | upper }}
+                                        {% elif buff_data.currency == 'sfl' %}F
+                                        {% else %}{{ buff_data.currency | slice(0,1) | upper }}{% endif %})
+                                    </span>
+                                {% endif %}
+                            </label>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="d-flex flex-wrap gap-2"> {# Container para os botões #}
+                <button id="recalculateCustomCalendarBtn" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Recalcular com Seleção</button>
+                <button id="resetToIdealCalendarBtn" class="btn btn-outline-secondary btn-sm"><i class="bi bi-stars me-1"></i>Voltar à Simulação Ideal</button>
+            </div>
+            <div id="customCalendarStatus" class="mt-2 small"></div>
+        </div>
+
+        <div class="table-responsive" id="potentialCalendarTableContainer">
+
             <table class="table table-sm table-hover table-bordered calendar-table" style="font-size: 0.78rem; min-width: 1200px;">
                 <thead class="table-dark sticky-top" style="z-index: 10;">
                     <tr>

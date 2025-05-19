@@ -1,12 +1,13 @@
 # analysis.py (Versão Final com Cálculo de Bônus DETALHADO Separado)
-import database_utils # Funções Firestore
-import config # Importa o config inteiro
-from datetime import datetime, timedelta
-import math
 import logging
+import math
 import statistics
-import time # Importa time para checar VIP
-from typing import List, Dict, Any, Optional
+import time  # Importa time para checar VIP
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+import config  # Importa o config inteiro
+import database_utils  # Funções Firestore
 
 log = logging.getLogger(__name__)
 
