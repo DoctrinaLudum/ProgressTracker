@@ -3,16 +3,18 @@ name = "sazonalytics"
 version = "0.1.0"
 description = "Analytical tool to explore the relationships between seasonal auctions, mega store tickets, and seasons, providing insights to optimize strategies."
 authors = [
-    {name = "DoctrinaLudum",email = "46344592+DoctrinaLudum@users.noreply.github.com"}
+    { name = "DoctrinaLudum", email = "46344592+DoctrinaLudum@users.noreply.github.com" }
 ]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "requests (>=2.32.3,<3.0.0)",
-    "google-cloud-firestore (>=2.20.2,<3.0.0)",
-    "flask (>=3.1.1,<4.0.0)"
-]
+    "flask>=3.1.1", # Adicionando uma restrição de versão como exemplo
+    "google-auth>=2.0.0",
+    "google-cloud-firestore>=2.0.0",
+    "requests>=2.32.0",
+    "gunicorn>=23.0.0", # Servidor WSGI para produção
 
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -20,4 +22,3 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.group.dev.dependencies]
 isort = "^6.0.1"
-
