@@ -29,7 +29,7 @@ try:
         log.info("Credenciais padrão do Google Cloud não encontradas. Tentando carregar o arquivo de credenciais local...")
         # 2. Se as credenciais padrão não forem encontradas, tenta carregar o arquivo localmente
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        credentials_path = os.path.join(base_dir, 'sfl-tracker-app-84739e970dda.json')
+        credentials_path = os.path.join(base_dir, 'firestore-key-acess.json')
 
         if os.path.exists(credentials_path):
             log.info(f"Arquivo de credenciais encontrado em: {credentials_path}. Tentando inicializar Firestore...")
