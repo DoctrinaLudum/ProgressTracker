@@ -1,3 +1,4 @@
+import datetime
 from typing import Any, Dict, Optional
 
 import bumpkin_utils
@@ -253,55 +254,122 @@ def process_farm_data_on_submit(
         logger.info(f"Nenhuma bounty encontrada na API para Farm ID {farm_id_submitted} ou a lista de bounties estava vazia.")
         processed_data["bounties_data"] = categorized_bounties_for_template # Envia estrutura vazia
 
-    # --- Processamento de Chores com Aplicação de Bônus ---
+    # ---> Processamento de Chores (Afazeres) ---
     processed_chores_for_template = []
     raw_chores_data_from_api = processed_data["farm_data_display"].get('choreBoard', {}).get('chores', {})
 
     if isinstance(raw_chores_data_from_api, dict) and raw_chores_data_from_api:
         logger.info(f"Processando {len(raw_chores_data_from_api)} chores para Farm ID {farm_id_submitted} com bônus.")
-        for npc_chore_giver, chore_details in raw_chores_data_from_api.items():
-            if chore_details.get('completedAt'): # Pula chores já completadas
-                logger.debug(f"Chore para '{npc_chore_giver}' já completada, pulando processamento de bônus.")
-                processed_chores_for_template.append({**chore_details, 'npc_giver': npc_chore_giver, 'is_bonus_applied': False})
+        for npc_giver_name, chore_details_api in raw_chores_data_from_api.items():
+            if not isinstance(chore_details_api, dict):
+                logger.warning(f"Detalhes do chore para NPC '{npc_giver_name}' não são um dicionário. Pulando.")
                 continue
 
-            current_chore = chore_details.copy()
-            current_chore['npc_giver'] = npc_chore_giver # Adiciona o nome do NPC para referência
-            
-            # Para chores, o 'activity_type' é fixo como "chores"
-            activity_type_chore = "chores"
-            chore_reward_object = current_chore.get('reward', {}) # O objeto que contém 'items'
+            # Estrutura de dados para o template
+            chore_display_data = {
+                "npc_key_for_filename": npc_giver_name,
+                "npc_name": npc_giver_name.replace("_", " ").title(),
+                "description": chore_details_api.get("name", "Descrição não disponível"),
+                "reward_items_original": chore_details_api.get("reward", {}).get("items", {}), # Guardamos o original
+                "started_at_timestamp": chore_details_api.get("startedAt"),
+                "completed_at_timestamp": chore_details_api.get("completedAt"),
+                "is_completed_api": chore_details_api.get("completedAt") is not None,
+                "started_at_formatted": None,
+                "completed_at_formatted": None,
+                "base_seasonal_tickets": 0,
+                "final_seasonal_tickets": 0, # Será atualizado com bônus
+                "bonus_applied_to_tickets": False,
+                "bonus_amount_tickets": 0,
+                "other_rewards_formatted": [] # Para SFL, Coins, outros itens
+            }
 
-            if activity_type_chore in current_config.ACTIVITY_BONUS_RULES and isinstance(chore_reward_object.get('items'), dict):
+            # Formatar timestamps
+            if chore_display_data["started_at_timestamp"]:
+                try:
+                    dt_started = datetime.fromtimestamp(chore_display_data["started_at_timestamp"] / 1000)
+                    chore_display_data["started_at_formatted"] = dt_started.strftime('%d/%m/%y %H:%M')
+                except Exception as e_ts_start:
+                    logger.error(f"Erro ao formatar started_at para chore de {npc_giver_name}: {e_ts_start}")
+                    chore_display_data["started_at_formatted"] = "Data inválida"
+            
+            if chore_display_data["completed_at_timestamp"]:
+                try:
+                    dt_completed = datetime.fromtimestamp(chore_display_data["completed_at_timestamp"] / 1000)
+                    chore_display_data["completed_at_formatted"] = dt_completed.strftime('%d/%m/%y %H:%M')
+                except Exception as e_ts_comp:
+                    logger.error(f"Erro ao formatar completed_at para chore de {npc_giver_name}: {e_ts_comp}")
+                    chore_display_data["completed_at_formatted"] = "Data inválida"
+
+            # Extrair recompensas
+            original_reward_items = chore_display_data["reward_items_original"]
+            seasonal_token_key = current_config.SEASONAL_TOKEN_NAME # Ex: "Geniseed"
+            token_icon_filename = None
+            if current_config.SEASONAL_TOKEN_NAME:
+                token_icon_filename = f"images/misc/{current_config.SEASONAL_TOKEN_NAME.lower()}.png"
+
+            
+            base_tickets = 0
+            if isinstance(original_reward_items.get(seasonal_token_key), (int, float)):
+                base_tickets = original_reward_items[seasonal_token_key]
+            
+            chore_display_data["base_seasonal_tickets"] = base_tickets
+            chore_display_data["final_seasonal_tickets"] = base_tickets # Inicializa com o base
+
+            for item_name, amount in original_reward_items.items():
+                if item_name != seasonal_token_key:
+                    chore_display_data["other_rewards_formatted"].append(f"{amount} {item_name.replace('_', ' ').title()}")
+
+            # Aplicar bônus aos tickets sazonais
+            activity_type_chore = "chores"
+            # O objeto de recompensa que contém o 'item_container_field' ("items")
+            # é o dicionário chore_details_api.get("reward", {})
+            chore_reward_object_api = chore_details_api.get("reward", {})
+            
+            if activity_type_chore in current_config.ACTIVITY_BONUS_RULES and \
+               isinstance(chore_reward_object_api.get('items'), dict) and \
+               base_tickets > 0:
+                
                 bonus_value_chore = current_analysis.calculate_bonus_for_activity(
                     active_player_bonus_names,
                     activity_type_chore,
                     current_config.SEASONAL_DELIVERY_BUFFS,
                     current_config.ACTIVITY_BONUS_RULES
                 )
+
                 if bonus_value_chore > 0:
-                    # A função apply_bonus_to_reward espera o container de itens no nível raiz do objeto.
-                    # Aqui, o container 'items' está dentro de 'reward'.
-                    # Vamos passar o objeto 'reward' para apply_bonus_to_reward.
-                    # A função apply_bonus_to_reward modificará chore_reward_object['items']
-                    # e adicionará 'applied_bonus_value', etc., ao chore_reward_object.
+                    # Criamos uma cópia do objeto de recompensa para passar para apply_bonus_to_reward
+                    # A função apply_bonus_to_reward espera que o objeto passado tenha um campo 'items'
+                    # que ela irá modificar.
+                    reward_object_for_bonus_application = {
+                        "items": original_reward_items.copy() # Passa uma cópia dos itens originais
+                    }
                     
-                    # Faz uma cópia do objeto de recompensa para não modificar o original diretamente se apply_bonus_to_reward falhar
-                    reward_copy_for_bonus = chore_reward_object.copy()
-                    
-                    modified_reward_object = current_analysis.apply_bonus_to_reward(
-                        reward_copy_for_bonus, # Passa a cópia do objeto de recompensa
+                    # apply_bonus_to_reward modificará reward_object_for_bonus_application['items'][seasonal_token_key]
+                    # e adicionará chaves como 'applied_bonus_value', 'is_bonus_applied'.
+                    modified_reward_details = current_analysis.apply_bonus_to_reward(
+                        reward_object_for_bonus_application, # Este objeto agora tem "items" no nível raiz
                         bonus_value_chore,
-                        current_config.ACTIVITY_BONUS_RULES[activity_type_chore],
-                        current_config.SEASONAL_TOKEN_NAME
+                        current_config.ACTIVITY_BONUS_RULES[activity_type_chore], # Passa a regra específica para 'chores'
+                        seasonal_token_key # Passa o nome do token para que saiba qual item buffar
                     )
-                    current_chore['reward'] = modified_reward_object # Atualiza o objeto de recompensa na chore
-                    logger.info(f"DEBUG: Chore '{current_chore.get('name', 'N/A')}' (NPC: {npc_chore_giver}) after bonus attempt: {current_chore}")
-            processed_chores_for_template.append(current_chore)
+                    
+                    # Atualizar nossos dados de display com base no que foi modificado
+                    if modified_reward_details.get('is_bonus_applied'):
+                        chore_display_data["final_seasonal_tickets"] = modified_reward_details.get("items", {}).get(seasonal_token_key, base_tickets)
+                        chore_display_data["bonus_applied_to_tickets"] = True
+                        # apply_bonus_to_reward adiciona 'applied_bonus_value' ao objeto que ela modifica
+                        chore_display_data["bonus_amount_tickets"] = modified_reward_details.get('applied_bonus_value', 0) 
+                        logger.info(f"Bônus de +{chore_display_data['bonus_amount_tickets']} aplicado ao chore '{chore_display_data['description']}'. Base: {base_tickets}, Final: {chore_display_data['final_seasonal_tickets']}")
+            
+            processed_chores_for_template.append(chore_display_data)
+        
         processed_data["chores_data"] = processed_chores_for_template
     else:
-        logger.info(f"Nenhuma chore ativa encontrada para Farm ID {farm_id_submitted} ou dados não disponíveis.")
-        processed_data["chores_data"] = [] # Envia lista vazia
+        logger.info(f"Nenhum chore encontrado para Farm ID {farm_id_submitted} ou dados não disponíveis.")
+        processed_data["chores_data"] = []
+
+    # ---> FIM Processamento de Chores com Aplicação de Bônus ---
+
 
     return processed_data
 

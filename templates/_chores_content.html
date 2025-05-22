@@ -1,0 +1,100 @@
+{# templates/_chores_content.html #}
+
+{% if farm_id_submitted and chores_data is defined %}
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h4 class="mb-0 text-success">
+                <i class="bi bi-check2-square me-2"></i>Painel de Afazeres (Chores)
+            </h4>
+        </div>
+        <div class="card-body">
+            {% if chores_data %}
+                {# LINHA MODIFICADA ABAIXO #}
+                <div class="bounties-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;"> {# Adicionado display: grid; #}
+                    {% for chore in chores_data %}
+                        <div class="card h-100 chore-card {% if chore.is_completed_api %}border-success bg-success-subtle{% else %}border-primary{% endif %}">
+                            <div class="row g-0 h-100"> {# g-0 para remover gutters, h-100 para altura total #}
+                                <div class="col-4"> {# Coluna da imagem #}
+                                    {% set npc_filename_base = chore.npc_key_for_filename | lower %}
+                                    {% set npc_image_path = 'images/npcs/' + npc_filename_base + '.png' %}
+                                    <img src="{{ url_for('static', filename=npc_image_path) }}"
+                                         alt="{{ chore.npc_name }}"
+                                         class="img-fluid rounded-start w-100 h-100" {# Preenche a coluna, borda arredondada #}
+                                         style="object-fit: contain; background-color: #f0f0f0; image-rendering: pixelated;"
+                                         data-placeholder-url="{{ url_for('static', filename='images/misc/placeholder_npc.png') }}"
+                                         onerror="this.style.backgroundColor='#e0e0e0'; this.src=this.dataset.placeholderUrl; this.onerror=null;">
+                                    {# Fallback para placeholder. Certifique-se que 'images/misc/placeholder_npc.png' exista #}
+                                </div>
+                                <div class="col-8 d-flex flex-column"> {# Coluna do conteúdo #}
+                                    <div class="card-body p-2 d-flex flex-column"> {# Padding reduzido, mantém flex-column para mt-auto #}
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <div class="flex-grow-1 me-2"> {# Espaço para o badge #}
+                                                <h6 class="card-title mb-0 {% if chore.is_completed_api %}text-success{% else %}text-primary{% endif %}" style="font-size: 0.9rem;">
+                                                    <strong>{{ chore.npc_name }}:</strong><br>
+                                                    <span style="font-weight: normal; font-size: 0.85em;">{{ chore.description }}</span>
+                                                </h6>
+                                            </div>
+                                            {% if chore.is_completed_api %}
+                                                <span class="badge bg-success ms-auto align-self-center flex-shrink-0"><i class="bi bi-check-circle-fill me-1"></i>Concluído</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark ms-auto align-self-center flex-shrink-0"><i class="bi bi-hourglass-split me-1"></i>Ativo</span>
+                                            {% endif %}
+                                        </div>
+
+                                        {% if chore.is_completed_api and chore.completed_at_formatted and chore.completed_at_formatted != 'Data inválida' %}
+                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">
+                                                Concluído em: {{ chore.completed_at_formatted }}
+                                            </p>
+                                        {% elif not chore.is_completed_api and chore.started_at_formatted and chore.started_at_formatted != 'Data inválida' %}
+                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">
+                                                Iniciado em: {{ chore.started_at_formatted }}
+                                            </p>
+                                        {% endif %}
+                                        
+                                        <hr class="my-1"> {# Margem do hr reduzida #}
+
+                                        <div class="mt-auto"> 
+                                            <strong class="d-block mb-1" style="font-size: 0.8em;">Recompensa(s):</strong>
+                                            {% if chore.base_seasonal_tickets > 0 or chore.final_seasonal_tickets > 0 %}
+                                                <div class="mb-1 d-flex align-items-center" style="font-size: 0.8rem;">
+                                                    {% set token_icon_filename = 'images/misc/' + token_name | lower + '.png' %}
+                                                    <img src="{{ url_for('static', filename=token_icon_filename) }}" 
+                                                         alt="{{ token_name }}" 
+                                                         style="width: 16px; height: 16px;" 
+                                                         class="me-1 flex-shrink-0"
+                                                         onerror="this.style.display='none';"> 
+
+                                                    <span class="fw-bold me-1">{{ chore.final_seasonal_tickets }} {{ token_name }}</span>
+                                                    {% if chore.bonus_applied_to_tickets and chore.bonus_amount_tickets > 0 %}
+                                                        <span class="text-success small" title="Bônus aplicado">(+{{ chore.bonus_amount_tickets }})</span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                            {% for other_reward in chore.other_rewards_formatted %}
+                                                <div class="small text-muted mb-0" style="font-size: 0.75rem;">{{ other_reward }}</div> {# Fonte e margem reduzidas #}
+                                            {% endfor %}
+                                            {% if not (chore.base_seasonal_tickets > 0 or chore.final_seasonal_tickets > 0) and not chore.other_rewards_formatted %}
+                                                <div class="small text-muted" style="font-size: 0.75rem;">Nenhuma recompensa principal.</div>
+                                            {% endif %}
+                                        </div>
+                                    {# ... fim do card ... #}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-light text-center" role="alert">
+                    <i class="bi bi-info-circle me-1"></i> Nenhum afazer encontrado para esta fazenda no momento.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% elif farm_id_submitted %}
+    <div class="alert alert-warning" role="alert">
+        Os dados dos afazeres não puderam ser carregados.
+    </div>
+{% else %}
+    {# Não mostra nada se nenhum farm_id foi submetido ainda #}
+{% endif %}

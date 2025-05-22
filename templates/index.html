@@ -240,6 +240,11 @@
                                <i class="bi bi-list-check me-1"></i> Tarefas (Bounties)
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="chores-sub-tab" data-bs-toggle="tab" data-bs-target="#chores-sub-tab-pane" type="button" role="tab" aria-controls="chores-sub-tab-pane" aria-selected="false">
+                               <i class="bi bi-check2-square me-1"></i> Afazeres (Chores)
+                            </button>
+                        </li>
                     </ul>
                     <div class="tab-content" id="tokenSourcesSubTabsContent">
                         <div class="tab-pane fade show active" id="deliveries-sub-tab-pane" role="tabpanel" aria-labelledby="deliveries-sub-tab" tabindex="0">
@@ -247,6 +252,9 @@
                          </div>
                         <div class="tab-pane fade" id="bounties-sub-tab-pane" role="tabpanel" aria-labelledby="bounties-sub-tab" tabindex="0">
                            {% include '_bounties_content.html' %}
+                        </div>
+                        <div class="tab-pane fade" id="chores-sub-tab-pane" role="tabpanel" aria-labelledby="chores-sub-tab" tabindex="0">
+                            {% include '_chores_content.html' %}
                         </div>
                     </div>
                 </div>
