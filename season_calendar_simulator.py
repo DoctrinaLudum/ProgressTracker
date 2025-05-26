@@ -242,7 +242,6 @@ def generate_max_potential_season_calendar():
                             daily_log_entry["gains_item_bonuses_detailed"].setdefault(buff_name, {})["animal_bounties"] = bonus_animal
         
         # --- Loop de Compra e Ativação ---
-        # (Lógica como na versão anterior - ID: ft3zf2m0x)
         action_taken_this_day_in_purchase_loop = True 
         while action_taken_this_day_in_purchase_loop:
             action_taken_this_day_in_purchase_loop = False 
@@ -530,13 +529,6 @@ def generate_custom_season_calendar(user_selected_buff_names=None):
                         break
             
             if not action_taken_this_day_in_purchase_loop: break # Sai do while se nenhuma compra/desbloqueio foi feito nesta iteração
-
-        # --- Recalcula bônus e totais APÓS todas as compras/ativações do dia ---
-        # (Esta parte é idêntica à original: recalcula ganhos_item_bonuses_detailed,
-        # item_specific_bonus_totals, gains_vip_total_bonus, total_gains_today,
-        # e balance_end_day, usando os `purchased_buff_items_globally` atualizados.)
-        # Para manter o diff conciso, esta lógica de recálculo não será repetida aqui,
-        # mas deve ser copiada da função original.
 
         # --- INÍCIO DA LÓGICA DE RECÁLCULO DE GANHOS (copiada e adaptada da original) ---
         active_buffs_at_day_start = set(purchased_buff_items_globally.keys()) # Buffs ativos após compras

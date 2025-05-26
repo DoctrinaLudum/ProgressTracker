@@ -110,10 +110,10 @@
                 </div>
                 <div class="card-body">
                     {# --- Área para exibir a Taxa Média Diária (MODIFICADA) --- #}
-                {% set rate_to_pass_to_js = '' %} {# Inicializa vazio #}
-                {% if avg_daily_rate_status == 'real' and avg_daily_rate is number and avg_daily_rate > 0 %}
-                    {% set rate_to_pass_to_js = avg_daily_rate|round(1) %}
-                {% elif avg_daily_rate_status == 'placeholder' and avg_daily_rate is number and avg_daily_rate > 0 %}
+                {% set rate_to_pass_to_js = '' %}
+                {# Sempre tenta passar avg_daily_rate se for um número positivo, #}
+                {# pois ele já contém o placeholder se a taxa real não pôde ser usada. #}
+                {% if avg_daily_rate is number and avg_daily_rate > 0 %}
                     {% set rate_to_pass_to_js = avg_daily_rate|round(1) %}
                 {% endif %}
 
@@ -152,9 +152,9 @@
                                 <i class="bi bi-graph-down me-1"></i>Info
                             </span>
                         {% elif avg_daily_rate_status == 'erro_calculo_taxa' %}
-                            N/D (Erro no cálculo)
-                            <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="Ocorreu um problema ao tentar calcular sua taxa real.">
-                                <i class="bi bi-x-octagon-fill me-1"></i>Aviso
+                            {{ "%.1f"|format(avg_daily_rate|float) }}/dia {# Mostra a taxa placeholder #}
+                            <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill ms-1 align-middle" data-bs-toggle="tooltip" data-bs-placement="top" title="Não foi possível calcular sua taxa real devido a um erro. A taxa padrão ({{ "%.1f"|format(avg_daily_rate|float) }}/dia) está sendo usada.">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Usando Padrão
                             </span>
                         {% else %} {# Para 'nao_calculado_ainda', 'aguardando_dados' #}
                             N/D
@@ -176,7 +176,7 @@
                         {% elif avg_daily_rate_status == 'dados_insuficientes' %}
                             Continue usando a ferramenta para um cálculo mais preciso.
                         {% elif avg_daily_rate_status == 'erro_calculo_taxa' %}
-                            Uma taxa padrão será usada para as projeções.
+                            Devido a um erro no cálculo da sua taxa real, a taxa padrão acima está sendo utilizada para as projeções.
                         {% elif avg_daily_rate_status == 'aguardando_dados' and farm_id_submitted %}
                             Aguardando dados de <span class="fw-bold">{{ farm_id_submitted }}</span>.
                         {% else %}

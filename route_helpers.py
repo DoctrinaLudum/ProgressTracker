@@ -1,7 +1,9 @@
-import datetime
+# route_helpers.py
+from datetime import datetime, timedelta
+
 from typing import Any, Dict, Optional
 
-import bumpkin_utils
+import bumpkin_utils # Certifique-se que bumpkin_utils está no mesmo diretório ou PYTHONPATH
 
 
 # ---> FUNÇÃO AUXILIAR PARA DETERMINAR TIPO DE ATIVIDADE DA BOUNTY <---
@@ -64,7 +66,7 @@ def process_farm_data_on_submit(
     """
     processed_data = {
         "farm_data_display": None,
-        "npc_completion_rates": {},
+        "npc_rates": {},
         "live_completions": 0,
         "live_tokens": 0,
         "live_cost_sfl": 0.0,
@@ -76,32 +78,34 @@ def process_farm_data_on_submit(
         "processing_error_message": None
     }
     try:
-        farm_data_display = api_response_data['farm']
+        farm_data_display = api_response_data['farm'] # Este é o objeto 'farm' completo
         processed_data["farm_data_display"] = farm_data_display
+        
         npc_data_completo = farm_data_display.get('npcs', {})
         delivery_orders_from_api = farm_data_display.get('delivery', {}).get('orders', [])
         bumpkin_data_from_api = farm_data_display.get("bumpkin")
+
         if bumpkin_data_from_api and isinstance(bumpkin_data_from_api, dict):
             equipped_items = bumpkin_data_from_api.get("equipped")
             if equipped_items and isinstance(equipped_items, dict):
                 processed_data["bumpkin_image_url"] = gerar_bumpkin_url_func(equipped_items)
-                logger.info(f"URL da imagem do Bumpkin gerada para {farm_id_submitted}: {processed_data['bumpkin_image_url']}")
+                logger.debug(f"URL da imagem do Bumpkin gerada para {farm_id_submitted}: {processed_data['bumpkin_image_url']}")
             else:
                 logger.warning(f"Dados de 'equipped' não encontrados ou em formato incorreto para Farm ID {farm_id_submitted}.")
         else:
             logger.warning(f"Dados de 'bumpkin' não encontrados ou em formato incorreto para Farm ID {farm_id_submitted}.")
-
+    
         # --- Cálculo de Bônus de Entrega (já existente) ---
         try:
             bonus_info = current_analysis.calculate_delivery_bonus(farm_data_display, current_config.SEASONAL_DELIVERY_BUFFS)
             processed_data["total_delivery_bonus"] = bonus_info.get('total_bonus', 0)
             processed_data["active_bonus_details"] = bonus_info.get('details', {})
-            logger.info(f"Bônus de entrega calculado para Farm {farm_id_submitted}: +{processed_data['total_delivery_bonus']}")
+            logger.debug(f"Bônus de entrega calculado para Farm {farm_id_submitted}: +{processed_data['total_delivery_bonus']}")
         except Exception as e_bonus:
             logger.exception(f"Erro ao calcular bônus para Farm {farm_id_submitted}: {e_bonus}")
 
         # --- Processamento de NPCs e Estado (já existente) ---
-        if npc_data_completo:
+        if npc_data_completo: # npc_data_completo é farm_data_display.get('npcs', {})
             npcs_processed_for_state = []
             state_update_failed = False
             prices_now = current_db_utils.get_sfl_world_prices() or {}
@@ -114,9 +118,9 @@ def process_farm_data_on_submit(
                 current_skipped_count = npc_info.get('skippedCount', 0)
                 if current_delivery_count is not None:
                     total = current_delivery_count + current_skipped_count
-                    processed_data["npc_completion_rates"][npc_name] = round((current_delivery_count / total) * 100, 1) if total > 0 else 0.0
+                    processed_data["npc_rates"][npc_name] = round((current_delivery_count / total) * 100, 1) if total > 0 else 0.0
                 else:
-                    processed_data["npc_completion_rates"][npc_name] = 'N/A'
+                    processed_data["npc_rates"][npc_name] = 'N/A'
                 if current_delivery_count is not None:
                     try:
                         previous_state_data = current_db_utils.get_npc_state(farm_id_submitted, npc_name)
@@ -127,28 +131,26 @@ def process_farm_data_on_submit(
                                 processed_data["live_completions"] += completions_now
                                 base_token_reward = current_config.BASE_DELIVERY_REWARDS.get(npc_name, 0)
                                 
-                                # Calcula recompensa efetiva por entrega (base + bônus aditivo)
                                 effective_reward_per_delivery = base_token_reward + processed_data["total_delivery_bonus"]
                                 
-                                # Aplica multiplicador de "doubleDelivery" se estiver ativo
                                 if processed_data["active_bonus_details"].get("is_double_delivery_active"):
                                     effective_reward_per_delivery *= 2
-                                    logger.info(f"Evento 'doubleDelivery' ativo. Recompensa por entrega para {npc_name} dobrada para {effective_reward_per_delivery} (Base: {base_token_reward}, Bônus Aditivo: {processed_data['total_delivery_bonus']}).")
+                                    logger.debug(f"Evento 'doubleDelivery' ativo. Recompensa por entrega para {npc_name} dobrada para {effective_reward_per_delivery} (Base: {base_token_reward}, Bônus Aditivo: {processed_data['total_delivery_bonus']}).")
                                 
                                 processed_data["live_tokens"] += completions_now * effective_reward_per_delivery
                                 reward_info = npc_info.get('reward', {})
                                 if isinstance(reward_info, dict) and not reward_info:
-                                     delivery_info = npc_info.get('delivery')
-                                     cost_current_delivery = 0.0
-                                     if prices_now and delivery_info and isinstance(delivery_info.get('items'), dict):
-                                         items_needed = delivery_info.get('items')
-                                         if items_needed:
-                                             try:
-                                                 cost = sum((amount or 0) * prices_now.get(item, 0.0) for item, amount in items_needed.items())
-                                                 cost_current_delivery = cost
-                                             except Exception as e_cost:
-                                                  logger.exception(f"Erro ao calcular custo da entrega de {npc_name} para Farm {farm_id_submitted}: {e_cost}")
-                                     processed_data["live_cost_sfl"] += cost_current_delivery
+                                    delivery_info = npc_info.get('delivery')
+                                    cost_current_delivery = 0.0
+                                    if prices_now and delivery_info and isinstance(delivery_info.get('items'), dict):
+                                        items_needed = delivery_info.get('items')
+                                        if items_needed:
+                                            try:
+                                                cost = sum((amount or 0) * prices_now.get(item, 0.0) for item, amount in items_needed.items())
+                                                cost_current_delivery = cost
+                                            except Exception as e_cost:
+                                                logger.exception(f"Erro ao calcular custo da entrega de {npc_name} para Farm {farm_id_submitted}: {e_cost}")
+                                    processed_data["live_cost_sfl"] += cost_current_delivery
                         update_success = current_db_utils.update_npc_state(
                             farm_id_submitted, npc_name,
                             current_delivery_count, current_skipped_count,
@@ -165,58 +167,72 @@ def process_farm_data_on_submit(
             if state_update_failed:
                 processed_data["processing_error_message"] = "Atenção: Erro parcial ao salvar estado das entregas."
             elif npcs_processed_for_state:
-                logger.info(f"Estado atualizado para NPCs: {', '.join(npcs_processed_for_state)}")
+                logger.debug(f"Estado atualizado para NPCs: {', '.join(npcs_processed_for_state)} em Farm {farm_id_submitted}.")
+            
+            # Chamada para criar snapshot
             try:
+                # A função create_snapshot_if_needed espera (farm_id, all_farm_api_data, active_delivery_orders)
+                # all_farm_api_data é o objeto 'farm' completo da API, que aqui é 'farm_data_display'
+                # active_delivery_orders é 'delivery_orders_from_api'
                 current_db_utils.create_snapshot_if_needed(
-                    farm_id_submitted, 
-                    npc_data_completo, 
-                    delivery_orders_from_api)
+                    farm_id_submitted,
+                    farm_data_display,  # <--- ALTERAÇÃO APLICADA AQUI
+                    delivery_orders_from_api
+                )
             except Exception as e_snap:
                 logger.exception(f"Erro ao criar snapshot para Farm {farm_id_submitted}: {e_snap}")
                 if not processed_data["processing_error_message"]:
                      processed_data["processing_error_message"] = "Aviso: Falha ao registrar snapshot diário."
-        else:
-            logger.warning(f"Chave 'npcs' vazia/ausente para Farm {farm_id_submitted}. NPCs e snapshot pulados.")
+        else: # Caso npc_data_completo seja None ou vazio
+            logger.warning(f"Chave 'npcs' vazia/ausente em farm_data_display para Farm {farm_id_submitted}. Processamento de NPCs de delivery e snapshot de delivery pulados.")
+
+    # --- O restante do processamento (Bounties, Chores, tratamento de exceções) continua abaixo ---
+    # Este bloco try...except é para o processamento inicial dos dados da API e estado dos NPCs de delivery.
+    # O processamento de Bounties e Chores para *exibição no template* (não para o snapshot histórico ainda)
+    # e o tratamento de exceções principal da função continuam a partir daqui.
+
     except KeyError as ke:
         logger.exception(f"KeyError ao processar dados da API para Farm {farm_id_submitted}: Chave {ke} ausente.")
         processed_data["processing_error_message"] = "Erro ao processar dados da fazenda: formato inesperado."
+        # Retorna processed_data mesmo em erro para que o template possa lidar com a mensagem
+        return processed_data 
     except Exception as e_proc:
         logger.exception(f"Erro inesperado processando dados da fazenda {farm_id_submitted}: {e_proc}")
         processed_data["processing_error_message"] = "Erro interno ao processar os dados da fazenda."
+        # Retorna processed_data mesmo em erro
+        return processed_data
 
-    # --- Processamento de Bounties (Mega Board) com Aplicação de Bônus ---
-    # Estrutura para o template, seguindo BOUNTY_CATEGORY_ORDER de config.py
+    # --- Processamento de Bounties (Mega Board) com Aplicação de Bônus (para exibição no template) ---
     categorized_bounties_for_template = {
         "categories": {category: [] for category in current_config.BOUNTY_CATEGORY_ORDER},
         "order": current_config.BOUNTY_CATEGORY_ORDER
     }
-    
     active_player_bonus_names = list(processed_data["active_bonus_details"].keys())
     
-    # <<< CORREÇÃO: Usar bounties da resposta da API >>>
-    # farm_data_display já é api_response_data['farm']
-    bounties_object_from_api = processed_data["farm_data_display"].get('bounties')
-    raw_bounties_from_api = [] # Inicializa como lista vazia
+    # Usar bounties da resposta da API (farm_data_display já é api_response_data['farm'])
+    bounties_object_from_api = farm_data_display.get('bounties') if farm_data_display else {}
+    raw_bounties_from_api = []
 
     if isinstance(bounties_object_from_api, dict):
         raw_bounties_from_api = bounties_object_from_api.get('requests', [])
         if not isinstance(raw_bounties_from_api, list):
             logger.warning(f"A chave 'requests' dentro de 'bounties' não é uma lista para Farm ID {farm_id_submitted}. Dados: {raw_bounties_from_api}")
             raw_bounties_from_api = []
-    elif bounties_object_from_api is not None: # Se 'bounties' existe mas não é um dict
+    elif bounties_object_from_api is not None:
         logger.warning(f"Dados de 'bounties' da API não são um dicionário esperado para Farm ID {farm_id_submitted}. Bounties puladas. Dados: {bounties_object_from_api}")
         raw_bounties_from_api = []
-    logger.info(f"DEBUG: Raw bounties from API ({len(raw_bounties_from_api)}): {raw_bounties_from_api}")
+    
+    logger.debug(f"Raw bounties from API for template display ({len(raw_bounties_from_api)}): {raw_bounties_from_api}")
 
     if raw_bounties_from_api:
-        logger.info(f"Processando {len(raw_bounties_from_api)} bounties (da API) para Farm ID {farm_id_submitted} com bônus.")
+        logger.debug(f"Processando {len(raw_bounties_from_api)} bounties (da API) para exibição no template do Farm ID {farm_id_submitted} com bônus.")
         for bounty in raw_bounties_from_api:
-            current_bounty = bounty.copy() # Trabalha com uma cópia
+            current_bounty = bounty.copy() 
             bounty_item_name = current_bounty.get("name")
-            logger.info(f"DEBUG: Processing bounty (original): {current_bounty}") # << NOVO LOG
+            logger.debug(f"Template Display - Processing bounty (original): {current_bounty}")
 
             activity_type = get_bounty_activity_type(current_bounty, current_config, logger)
-            logger.info(f"DEBUG: Bounty '{bounty_item_name}' classified as activity_type: {activity_type}") # << NOVO LOG
+            logger.debug(f"Template Display - Bounty '{bounty_item_name}' classified as activity_type: {activity_type}")
 
             if activity_type and activity_type in current_config.ACTIVITY_BONUS_RULES:
                 bonus_value = current_analysis.calculate_bonus_for_activity(
@@ -232,10 +248,9 @@ def process_farm_data_on_submit(
                         current_config.ACTIVITY_BONUS_RULES[activity_type],
                         current_config.SEASONAL_TOKEN_NAME
                     )
-            logger.info(f"DEBUG: Bounty after bonus attempt: {current_bounty}") # << NOVO LOG
+            logger.debug(f"Template Display - Bounty after bonus attempt: {current_bounty}")
             
-            # Determinar categoria da bounty para exibição no frontend
-            display_category = "Exotic" # Categoria padrão
+            display_category = "Exotic" 
             if bounty_item_name:
                 if bounty_item_name in current_config.FLOWER_BOUNTY_NAMES: display_category = "Flores"
                 elif bounty_item_name in current_config.FISH_BOUNTY_NAMES: display_category = "Peixes"
@@ -244,48 +259,51 @@ def process_farm_data_on_submit(
             
             if display_category in categorized_bounties_for_template["categories"]:
                 categorized_bounties_for_template["categories"][display_category].append(current_bounty)
-            else: # Fallback para Exotic se a categoria não estiver na ordem (improvável com a config atual)
+            else: 
                 logger.warning(f"Categoria de display '{display_category}' para bounty '{bounty_item_name}' não está em BOUNTY_CATEGORY_ORDER. Adicionando a 'Exotic'.")
                 categorized_bounties_for_template["categories"]["Exotic"].append(current_bounty)
         
         processed_data["bounties_data"] = categorized_bounties_for_template
-        logger.info(f"DEBUG: Final categorized bounties for template: {processed_data['bounties_data']}") # << NOVO LOG
+        logger.debug(f"Template Display - Final categorized bounties for template: {processed_data['bounties_data']}")
     else:
-        logger.info(f"Nenhuma bounty encontrada na API para Farm ID {farm_id_submitted} ou a lista de bounties estava vazia.")
-        processed_data["bounties_data"] = categorized_bounties_for_template # Envia estrutura vazia
+        logger.debug(f"Nenhuma bounty encontrada na API para exibição no template do Farm ID {farm_id_submitted} ou a lista de bounties estava vazia.")
+        processed_data["bounties_data"] = categorized_bounties_for_template
 
-    # ---> Processamento de Chores (Afazeres) ---
+    # ---> Processamento de Chores (Afazeres) para exibição no template ---
     processed_chores_for_template = []
-    raw_chores_data_from_api = processed_data["farm_data_display"].get('choreBoard', {}).get('chores', {})
+    # farm_data_display já é api_response_data['farm']
+    raw_chores_data_from_api = farm_data_display.get('choreBoard', {}).get('chores', {}) if farm_data_display else {}
+
 
     if isinstance(raw_chores_data_from_api, dict) and raw_chores_data_from_api:
-        logger.info(f"Processando {len(raw_chores_data_from_api)} chores para Farm ID {farm_id_submitted} com bônus.")
+        logger.debug(f"Processando {len(raw_chores_data_from_api)} chores para exibição no template (Farm ID {farm_id_submitted}) com bônus.")
         for npc_giver_name, chore_details_api in raw_chores_data_from_api.items():
             if not isinstance(chore_details_api, dict):
                 logger.warning(f"Detalhes do chore para NPC '{npc_giver_name}' não são um dicionário. Pulando.")
                 continue
 
-            # Estrutura de dados para o template
             chore_display_data = {
                 "npc_key_for_filename": npc_giver_name,
                 "npc_name": npc_giver_name.replace("_", " ").title(),
                 "description": chore_details_api.get("name", "Descrição não disponível"),
-                "reward_items_original": chore_details_api.get("reward", {}).get("items", {}), # Guardamos o original
+                "reward_items_original": chore_details_api.get("reward", {}).get("items", {}),
                 "started_at_timestamp": chore_details_api.get("startedAt"),
                 "completed_at_timestamp": chore_details_api.get("completedAt"),
                 "is_completed_api": chore_details_api.get("completedAt") is not None,
                 "started_at_formatted": None,
                 "completed_at_formatted": None,
                 "base_seasonal_tickets": 0,
-                "final_seasonal_tickets": 0, # Será atualizado com bônus
+                "final_seasonal_tickets": 0,
                 "bonus_applied_to_tickets": False,
                 "bonus_amount_tickets": 0,
-                "other_rewards_formatted": [] # Para SFL, Coins, outros itens
+                "other_rewards_formatted": []
             }
 
-            # Formatar timestamps
             if chore_display_data["started_at_timestamp"]:
                 try:
+                    # Se o import for "import datetime":
+                    # dt_started = datetime.datetime.fromtimestamp(chore_display_data["started_at_timestamp"] / 1000)
+                    # Se o import for "from datetime import datetime":
                     dt_started = datetime.fromtimestamp(chore_display_data["started_at_timestamp"] / 1000)
                     chore_display_data["started_at_formatted"] = dt_started.strftime('%d/%m/%y %H:%M')
                 except Exception as e_ts_start:
@@ -294,35 +312,31 @@ def process_farm_data_on_submit(
             
             if chore_display_data["completed_at_timestamp"]:
                 try:
+                    # Se o import for "import datetime":
+                    # dt_completed = datetime.datetime.fromtimestamp(chore_display_data["completed_at_timestamp"] / 1000)
+                    # Se o import for "from datetime import datetime":
                     dt_completed = datetime.fromtimestamp(chore_display_data["completed_at_timestamp"] / 1000)
                     chore_display_data["completed_at_formatted"] = dt_completed.strftime('%d/%m/%y %H:%M')
                 except Exception as e_ts_comp:
                     logger.error(f"Erro ao formatar completed_at para chore de {npc_giver_name}: {e_ts_comp}")
                     chore_display_data["completed_at_formatted"] = "Data inválida"
 
-            # Extrair recompensas
-            original_reward_items = chore_display_data["reward_items_original"]
-            seasonal_token_key = current_config.SEASONAL_TOKEN_NAME # Ex: "Geniseed"
-            token_icon_filename = None
-            if current_config.SEASONAL_TOKEN_NAME:
-                token_icon_filename = f"images/misc/{current_config.SEASONAL_TOKEN_NAME.lower()}.png"
 
+            original_reward_items = chore_display_data["reward_items_original"]
+            seasonal_token_key = current_config.SEASONAL_TOKEN_NAME
             
             base_tickets = 0
             if isinstance(original_reward_items.get(seasonal_token_key), (int, float)):
                 base_tickets = original_reward_items[seasonal_token_key]
             
             chore_display_data["base_seasonal_tickets"] = base_tickets
-            chore_display_data["final_seasonal_tickets"] = base_tickets # Inicializa com o base
+            chore_display_data["final_seasonal_tickets"] = base_tickets
 
             for item_name, amount in original_reward_items.items():
                 if item_name != seasonal_token_key:
                     chore_display_data["other_rewards_formatted"].append(f"{amount} {item_name.replace('_', ' ').title()}")
 
-            # Aplicar bônus aos tickets sazonais
             activity_type_chore = "chores"
-            # O objeto de recompensa que contém o 'item_container_field' ("items")
-            # é o dicionário chore_details_api.get("reward", {})
             chore_reward_object_api = chore_details_api.get("reward", {})
             
             if activity_type_chore in current_config.ACTIVITY_BONUS_RULES and \
@@ -337,64 +351,52 @@ def process_farm_data_on_submit(
                 )
 
                 if bonus_value_chore > 0:
-                    # Criamos uma cópia do objeto de recompensa para passar para apply_bonus_to_reward
-                    # A função apply_bonus_to_reward espera que o objeto passado tenha um campo 'items'
-                    # que ela irá modificar.
                     reward_object_for_bonus_application = {
-                        "items": original_reward_items.copy() # Passa uma cópia dos itens originais
+                        "items": original_reward_items.copy()
                     }
-                    
-                    # apply_bonus_to_reward modificará reward_object_for_bonus_application['items'][seasonal_token_key]
-                    # e adicionará chaves como 'applied_bonus_value', 'is_bonus_applied'.
                     modified_reward_details = current_analysis.apply_bonus_to_reward(
-                        reward_object_for_bonus_application, # Este objeto agora tem "items" no nível raiz
+                        reward_object_for_bonus_application,
                         bonus_value_chore,
-                        current_config.ACTIVITY_BONUS_RULES[activity_type_chore], # Passa a regra específica para 'chores'
-                        seasonal_token_key # Passa o nome do token para que saiba qual item buffar
+                        current_config.ACTIVITY_BONUS_RULES[activity_type_chore],
+                        seasonal_token_key
                     )
-                    
-                    # Atualizar nossos dados de display com base no que foi modificado
                     if modified_reward_details.get('is_bonus_applied'):
                         chore_display_data["final_seasonal_tickets"] = modified_reward_details.get("items", {}).get(seasonal_token_key, base_tickets)
                         chore_display_data["bonus_applied_to_tickets"] = True
-                        # apply_bonus_to_reward adiciona 'applied_bonus_value' ao objeto que ela modifica
-                        chore_display_data["bonus_amount_tickets"] = modified_reward_details.get('applied_bonus_value', 0) 
-                        logger.info(f"Bônus de +{chore_display_data['bonus_amount_tickets']} aplicado ao chore '{chore_display_data['description']}'. Base: {base_tickets}, Final: {chore_display_data['final_seasonal_tickets']}")
+                        chore_display_data["bonus_amount_tickets"] = modified_reward_details.get('applied_bonus_value', 0)
+                        logger.debug(f"Bônus de +{chore_display_data['bonus_amount_tickets']} aplicado ao chore '{chore_display_data['description']}' para Farm {farm_id_submitted}. Base: {base_tickets}, Final: {chore_display_data['final_seasonal_tickets']}")
             
             processed_chores_for_template.append(chore_display_data)
         
         processed_data["chores_data"] = processed_chores_for_template
     else:
-        logger.info(f"Nenhum chore encontrado para Farm ID {farm_id_submitted} ou dados não disponíveis.")
+        logger.debug(f"Nenhum chore encontrado para exibição no template (Farm ID {farm_id_submitted}) ou dados não disponíveis.")
         processed_data["chores_data"] = []
-
-    # ---> FIM Processamento de Chores com Aplicação de Bônus ---
-
+    # ---> FIM Processamento de Chores (Afazeres) para exibição no template ---
 
     return processed_data
-
 # ---> FIM PROCESSAMENTO DOS DADOS DA FAZENDA <---
+
 
 # ---> ANÁLISE HISTÓRICA DE ENTREGAS (MODIFICADA PARA INCLUIR TAXA MÉDIA) <---
 def get_historical_analysis_results(farm_id, total_delivery_bonus_for_analysis, current_db_utils, current_analysis, logger, datetime_cls):
+    # ... (código existente, sem alterações nesta chamada) ...
     """
     Realiza a análise histórica de entregas e tokens para um farm_id.
     Retorna um dicionário com os resultados da análise, incluindo o número de dias 
     analisados e a taxa média diária de tokens.
     """
-    # Valores padrão para o retorno
     analise_historica_data = {
-        'status': 'ok', # Default status
+        'status': 'ok', 
         'total_conclusoes': 0,
         'total_tokens_estimados': 0,
         'total_custo_estimado_sfl': 0.0,
         'detalhes_por_npc': {},
-        'dados_completos': False, # Default para indicar se todos os dados foram processados
+        'dados_completos': False, 
         'periodo_analisado': "N/A",
         'dias_analisados': 0,
         'taxa_media_diaria_real': 0.0
     }
-
     try:
         farm_id_int = int(farm_id) 
         primeira_data_str, ultima_data_str = current_db_utils.get_first_and_last_snapshot_date(farm_id_int)
@@ -402,122 +404,86 @@ def get_historical_analysis_results(farm_id, total_delivery_bonus_for_analysis, 
         if primeira_data_str and ultima_data_str:
             logger.info(f"Iniciando análise histórica para Farm {farm_id} ({primeira_data_str} a {ultima_data_str}) com Bônus por entrega: +{total_delivery_bonus_for_analysis}")
             
-            # Chama a função de análise principal
             resultado_analysis_py = current_analysis.calcular_estimativa_token_deliveries(
                 farm_id, primeira_data_str, ultima_data_str, primeira_data_str, total_delivery_bonus_for_analysis
             )
 
             if resultado_analysis_py:
-                # Atualiza analise_historica_data com os resultados, mantendo os defaults se chaves não existirem
                 analise_historica_data.update(resultado_analysis_py)
             else:
                 logger.warning(f"Função 'calcular_estimativa_token_deliveries' retornou None para Farm {farm_id}.")
                 analise_historica_data['status'] = 'erro_analise'
                 analise_historica_data['mensagem'] = "Não foi possível gerar os dados da análise histórica."
-                # Mantém dados_completos como False e os valores numéricos como 0
 
-            # Prossegue apenas se não houver erro explícito da função de análise
             if 'erro' not in analise_historica_data and analise_historica_data.get('status') != 'erro_analise':
                 try:
                     dt_inicio = datetime_cls.strptime(primeira_data_str, '%Y-%m-%d')
                     dt_fim = datetime_cls.strptime(ultima_data_str, '%Y-%m-%d')
                     
-                    # Calcula o número de dias no período
                     dias_no_periodo = (dt_fim - dt_inicio).days + 1
                     analise_historica_data['dias_analisados'] = dias_no_periodo
                     
                     periodo_formatado = f"{dt_inicio.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}"
                     analise_historica_data['periodo_analisado'] = periodo_formatado
                     
-                    # Calcula a taxa média diária de tokens
                     total_tokens = analise_historica_data.get('total_tokens_estimados', 0)
-                    if dias_no_periodo > 0 and total_tokens is not None: # total_tokens pode ser 0
+                    if dias_no_periodo > 0 and total_tokens is not None:
                         taxa_calculada = round(total_tokens / dias_no_periodo, 2)
                         analise_historica_data['taxa_media_diaria_real'] = taxa_calculada
-                        logger.info(f"Farm {farm_id}: Total Tokens={total_tokens}, Dias Analisados={dias_no_periodo}, Taxa Média Diária Real={taxa_calculada}")
+                        logger.debug(f"Farm {farm_id}: Total Tokens={total_tokens}, Dias Analisados={dias_no_periodo}, Taxa Média Diária Real={taxa_calculada}")
                     else:
-                        # Mantém taxa_media_diaria_real como 0.0 se não puder calcular
                         logger.warning(f"Farm {farm_id}: Não foi possível calcular taxa média diária (dias_analisados={dias_no_periodo} ou total_tokens={total_tokens} inválido).")
-                    
                 except ValueError: 
-                    analise_historica_data['periodo_analisado'] = f"{primeira_data_str} a {ultima_data_str}" # Fallback
-                    # dias_analisados e taxa_media_diaria_real permanecem 0 como default
+                    analise_historica_data['periodo_analisado'] = f"{primeira_data_str} a {ultima_data_str}"
                     logger.error(f"Erro ao converter datas para análise em Farm {farm_id}. Datas: {primeira_data_str}, {ultima_data_str}")
-            # Se 'erro' em analise_historica_data, os defaults de dias e taxa são mantidos
         else: 
             logger.warning(f"Nenhum snapshot encontrado para análise histórica do Farm {farm_id}.")
             analise_historica_data['status'] = 'sem_historico'
             analise_historica_data['mensagem'] = "Nenhum histórico de entregas encontrado para análise."
-            # dias_analisados e taxa_media_diaria_real permanecem 0
-            
     except ValueError:
          logger.error(f"Farm ID '{farm_id}' inválido para consulta histórica.")
          analise_historica_data['erro'] = "Farm ID inválido para consulta de histórico."
-         # dias_analisados e taxa_media_diaria_real permanecem 0
     except Exception as e_analise:
         logger.exception(f"Erro durante busca/análise de snapshots para Farm {farm_id}: {e_analise}")
         analise_historica_data['erro'] = "Falha ao calcular o histórico de entregas."
-        # dias_analisados e taxa_media_diaria_real permanecem 0
-        
     return analise_historica_data
 # ---> FIM ANÁLISE HISTÓRICA DE ENTREGAS <---
 
 # ---> DETERMINAÇÃO DA TAXA DE GANHO DIÁRIO ATIVA <---
 def determine_active_daily_rate(simulated_rate_str_from_request, historical_rate_from_request, logger, default_placeholder_rate=10.0):
-    """
-    Determina a taxa de ganho diário a ser usada para projeções.
-    Prioridade: 1. Taxa Simulada, 2. Taxa Histórica, 3. Placeholder.
-    Retorna a taxa a ser usada e um booleano indicando se é uma simulação do usuário.
-    """
+    # ... (código existente, sem alterações) ...
     rate_actually_used = None
-    is_user_simulated_rate = False # True apenas se a taxa simulada explícita for usada
-
-    # 1. Tenta usar a taxa simulada (maior prioridade)
+    is_user_simulated_rate = False 
     if simulated_rate_str_from_request is not None and simulated_rate_str_from_request != '':
         try:
             parsed_simulated_rate = float(simulated_rate_str_from_request)
             if parsed_simulated_rate > 0:
                 rate_actually_used = parsed_simulated_rate
-                is_user_simulated_rate = True # É uma simulação explícita do usuário
-                logger.info(f"Taxa determinada: Usando taxa SIMULADA explícita: {rate_actually_used:.2f}")
+                is_user_simulated_rate = True 
+                logger.debug(f"Taxa determinada: Usando taxa SIMULADA explícita: {rate_actually_used:.2f}")
             else:
                 logger.warning(f"Taxa simulada fornecida ('{simulated_rate_str_from_request}') não é positiva.")
         except (ValueError, TypeError):
             logger.warning(f"Taxa simulada fornecida ('{simulated_rate_str_from_request}') não é um número válido.")
-
-    # 2. Se não for simulação explícita, tenta usar a taxa histórica passada pelo request
     if rate_actually_used is None and historical_rate_from_request is not None:
-        # historical_rate_from_request já deve ser um número (float) se chegou do JS corretamente
         try:
-            # Re-validar caso o JS envie algo inesperado, embora já tenha sido parseado no JS
             parsed_historical_rate = float(historical_rate_from_request)
             if parsed_historical_rate > 0:
                 rate_actually_used = parsed_historical_rate
-                # is_user_simulated_rate permanece False, pois não é uma simulação explícita "E se"
-                logger.info(f"Taxa determinada: Usando taxa HISTÓRICA calculada (recebida via request): {rate_actually_used:.2f}")
+                logger.debug(f"Taxa determinada: Usando taxa HISTÓRICA calculada (recebida via request): {rate_actually_used:.2f}")
             else:
                 logger.warning(f"Taxa histórica (do request) fornecida ('{historical_rate_from_request}') não é positiva.")
         except (ValueError, TypeError):
             logger.warning(f"Taxa histórica (do request) fornecida ('{historical_rate_from_request}') não é um número válido.")
-
-    # 3. Se nenhuma das anteriores (simulada ou histórica válida) foi usada, recorre ao placeholder default
     if rate_actually_used is None:
         rate_actually_used = default_placeholder_rate
-        # is_user_simulated_rate permanece False
-        logger.info(f"Taxa determinada: Nenhuma taxa simulada ou histórica válida. Usando taxa PLACEHOLDER/DEFAULT global: {rate_actually_used:.2f}")
-        # Poderíamos adicionar uma flag aqui para o frontend saber que é placeholder
-        # por exemplo, retornando um terceiro valor: `source_of_rate = 'placeholder'`
-        # Mas o frontend já tem o avg_daily_rate_status da carga inicial.
-
+        logger.debug(f"Taxa determinada: Nenhuma taxa simulada ou histórica válida. Usando taxa PLACEHOLDER/DEFAULT global: {rate_actually_used:.2f}")
     return rate_actually_used, is_user_simulated_rate
 # ---> FIM DETERMINAÇÃO DA TAXA DE GANHO DIÁRIO ATIVA <---
 
 # ---> CÁLCULO DOS DIAS RESTANTES DA TEMPORADA <---
 def calculate_remaining_season_days(season_end_date_str_from_config, datetime_cls, logger):
-    """
-    Calcula os dias restantes na temporada com base na data final fornecida.
-    Retorna o número de dias restantes ou None em caso de erro/data não definida.
-    """
+    # ... (código existente, sem alterações) ...
     days_left = None
     if not season_end_date_str_from_config:
         logger.warning("SEASON_END_DATE não definida. Não é possível calcular dias restantes.")
@@ -539,10 +505,7 @@ def calculate_remaining_season_days(season_end_date_str_from_config, datetime_cl
 
 # ---> CÁLCULO DETALHADO DA PROJEÇÃO DE ITEM <---
 def get_projection_calculation_details(item_name_to_calc, all_shop_items, marked_item_names_list, rate_to_use_for_calc, current_analysis, logger):
-    """
-    Calcula o custo total, itens de desbloqueio e dias projetados para um item.
-    Retorna um dicionário com os detalhes do cálculo.
-    """
+    # ... (código existente, sem alterações) ...
     calculation_results = {
         "custo_total_calculado": float('inf'), "custo_item_base": None,
         "custo_desbloqueio_calculado": float('inf'), "unlock_items_detalhados": [],
@@ -559,8 +522,79 @@ def get_projection_calculation_details(item_name_to_calc, all_shop_items, marked
             calculation_results["dias_projetados"] = current_analysis.projetar_dias_para_item(
                 calculation_results["custo_total_calculado"], rate_to_use_for_calc
             )
-        logger.info(f"Cálculo de projeção para '{item_name_to_calc}': Custo={calculation_results['custo_total_calculado']}, Dias={calculation_results['dias_projetados']}")
+        logger.debug(f"Cálculo de projeção para '{item_name_to_calc}': Custo={calculation_results['custo_total_calculado']}, Dias={calculation_results['dias_projetados']}")
     except Exception as e_calc:
         logger.exception(f"Erro no cálculo detalhado da projeção para {item_name_to_calc}: {e_calc}")
     return calculation_results
 # ---> FIM CÁLCULO DETALHADO DA PROJEÇÃO DE ITEM <---
+
+# ---> NOVA FUNÇÃO: ANÁLISE HISTÓRICA DE CHORES <---
+def get_chores_historical_analysis_results(farm_id, active_player_bonus_names, current_db_utils, current_analysis, current_config, logger, datetime_cls):
+    """
+    Realiza a análise histórica de Chores (Afazeres) para um farm_id.
+    Retorna um dicionário com os resultados da análise.
+    """
+    analise_chores_data = {
+        'status': 'ok',
+        'total_conclusoes': 0,
+        'total_tokens_estimados': 0, # Tokens FINAIS com bônus
+        'total_tokens_base': 0,    # Tokens BASE antes do bônus
+        # 'detalhes_por_chore': {}, # Poderia ser adicionado futuramente
+        'periodo_analisado': "N/A",
+        'dias_analisados': 0,
+        'dados_completos': False
+    }
+
+    try:
+        farm_id_int = int(farm_id)
+        primeira_data_str, ultima_data_str = current_db_utils.get_first_and_last_snapshot_date(farm_id_int) #
+
+        if primeira_data_str and ultima_data_str:
+            logger.info(f"Iniciando análise histórica de Chores para Farm {farm_id} ({primeira_data_str} a {ultima_data_str})")
+            
+            # Chama a nova função de análise de chores
+            resultado_chores_py = current_analysis.calcular_estimativa_token_chores(
+                farm_id, 
+                primeira_data_str, 
+                ultima_data_str, 
+                primeira_data_str, # Passando a primeira data da fazenda para a lógica de _get_chores_completions_in_period
+                active_player_bonus_names, # Bônus ativos do jogador
+                current_db_utils, 
+                current_analysis, # Passa o módulo analysis
+                current_config,   # Passa o módulo config
+                logger
+            )
+
+            if resultado_chores_py:
+                analise_chores_data.update(resultado_chores_py) # Atualiza com os resultados
+            else:
+                logger.warning(f"Função 'calcular_estimativa_token_chores' retornou None para Farm {farm_id}.")
+                analise_chores_data['status'] = 'erro_analise_chores'
+                analise_chores_data['mensagem'] = "Não foi possível gerar os dados da análise histórica de chores."
+
+            if 'erro' not in analise_chores_data and analise_chores_data.get('status') not in ['erro_analise_chores', 'erro_calculo_base']:
+                try:
+                    dt_inicio = datetime_cls.strptime(primeira_data_str, '%Y-%m-%d')
+                    dt_fim = datetime_cls.strptime(ultima_data_str, '%Y-%m-%d')
+                    dias_no_periodo = (dt_fim - dt_inicio).days + 1
+                    analise_chores_data['dias_analisados'] = dias_no_periodo
+                    periodo_formatado = f"{dt_inicio.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}"
+                    analise_chores_data['periodo_analisado'] = periodo_formatado
+                    analise_chores_data['dados_completos'] = True # Se chegou aqui, consideramos completo
+                except ValueError:
+                    analise_chores_data['periodo_analisado'] = f"{primeira_data_str} a {ultima_data_str}" # Fallback
+                    logger.error(f"Erro ao converter datas para período da análise de chores em Farm {farm_id}.")
+        else:
+            logger.warning(f"Nenhum snapshot encontrado para análise histórica de Chores do Farm {farm_id}.")
+            analise_chores_data['status'] = 'sem_historico'
+            analise_chores_data['mensagem'] = "Nenhum histórico encontrado para análise de chores."
+            
+    except ValueError:
+         logger.error(f"Farm ID '{farm_id}' inválido para consulta histórica de chores.")
+         analise_chores_data['erro'] = "Farm ID inválido para consulta de histórico de chores."
+    except Exception as e_analise_chores:
+        logger.exception(f"Erro durante busca/análise de snapshots para Chores (Farm {farm_id}): {e_analise_chores}")
+        analise_chores_data['erro'] = "Falha ao calcular o histórico de chores."
+        
+    return analise_chores_data
+# ---> FIM ANÁLISE HISTÓRICA DE CHORES <---

@@ -4,7 +4,6 @@
 {% block content %}
 
     {# --- SEÇÃO 1: Introdução e Cards (SÓ APARECEM NO INÍCIO) --- #}
-    {# --- SEÇÃO 1: Introdução e Cards (SÓ APARECEM NO INÍCIO) --- #}
     {% if not farm_id_submitted %}
         <div class="text-center mb-5 mt-4">
             <h2 class="text-success">Planeje sua Temporada no Sunflower Land!</h2>
@@ -17,13 +16,10 @@
             {# Card 1: Estimativa #}
             <div class="col-md-4 mb-3">
                 <div class="card text-center h-100 shadow-sm">
-                    <div class="card-body d-flex flex-column"> {# d-flex para alinhar botão se houver #}
+                    <div class="card-body d-flex flex-column">
                         <i class="bi bi-graph-up-arrow fs-1 text-primary mb-3"></i>
                         <h5 class="card-title">Estimativa de Ganho</h5>
                         <p class="card-text small mb-auto">Calcule sua média diária de tickets e projete seus ganhos futuros na temporada atual.</p>
-                        {# Exemplo de botão (opcional):
-                        <a href="#" class="btn btn-outline-primary btn-sm mt-3">Saiba Mais</a> 
-                        #}
                     </div>
                 </div>
             </div>
@@ -133,16 +129,18 @@
              <div class="alert alert-danger" role="alert">{{ error_message }}</div>
         </div>
 
-    {% elif farm_data %}
-   
+    {# MODIFICADO AQUI: de farm_data para farm_data_display #}
+    {% elif farm_data_display %} 
+    
     <div>   
         <div class="card mb-3 shadow-sm">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h2 class="mb-0 fw-normal card-title">
                         Fazenda
-                        {% if farm_data.username %}
-                            <strong class="text-success">{{ farm_data.username }}</strong>
+                        {# MODIFICADO AQUI: de farm_data para farm_data_display #}
+                        {% if farm_data_display.username %}
+                            <strong class="text-success">{{ farm_data_display.username }}</strong>
                         {% else %}
                             <em>(Nome não disponível)</em>
                         {% endif %}
@@ -154,10 +152,12 @@
                 </div>
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item ps-0">
-                        <strong>Moedas (Coins):</strong> {% set coins_val = farm_data.get('coins') %}{% if coins_val is not none %}{{ "%.2f"|format(coins_val|float) }}{% else %}N/A{% endif %}
+                        {# MODIFICADO AQUI: de farm_data para farm_data_display #}
+                        <strong>Moedas (Coins):</strong> {% set coins_val = farm_data_display.get('coins') %}{% if coins_val is not none %}{{ "%.2f"|format(coins_val|float) }}{% else %}N/A{% endif %}
                     </li>
                     <li class="list-group-item ps-0">
-                        <strong>Saldo SFL (Balance):</strong> {{ farm_data.get('balance', 'N/A') }}
+                        {# MODIFICADO AQUI: de farm_data para farm_data_display #}
+                        <strong>Saldo SFL (Balance):</strong> {{ farm_data_display.get('balance', 'N/A') }}
                     </li>
                 </ul>
             </div>
@@ -174,7 +174,8 @@
                 <div id="collapseInventory" class="collapse" aria-labelledby="inventoryHeader">
                     <ul class="list-group list-group-flush">
                         {% set inventory_items_shown = [] %}
-                        {% for item, amount in farm_data.get('inventory', {}).items() %}
+                        {# MODIFICADO AQUI: de farm_data para farm_data_display #}
+                        {% for item, amount in farm_data_display.get('inventory', {}).items() %}
                             {% if item in ['Sunflower', 'Potato', 'Wood', 'Stone', 'Iron', 'Gold', 'Egg'] %}
                                 <li class="list-group-item bg-light">{{ item }}: {{ amount }}</li>
                                 {% set _ = inventory_items_shown.append(item) %}
@@ -195,12 +196,10 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    {# Esta é a aba original da Loja Sazonal #}
                     <button class="nav-link" id="shop-tab" data-bs-toggle="tab" data-bs-target="#shop-tab-pane" type="button" role="tab" aria-controls="shop-tab-pane" aria-selected="false">
                        <i class="bi bi-shop me-1"></i> Loja Sazonal
                     </button>
                 </li>
-                {# NOVA ABA PRINCIPAL: FONTES DE TOKENS #}
                 <li class="nav-item" role="presentation">
                    <button class="nav-link" id="token-sources-main-tab" data-bs-toggle="tab" data-bs-target="#token-sources-main-tab-pane" type="button" role="tab" aria-controls="token-sources-main-tab-pane" aria-selected="false">
                        <i class="bi bi-moisture me-1"></i> Fontes de Tokens
@@ -222,9 +221,6 @@
 
                 {# Painel da Loja Sazonal (fica vazio, conteúdo é mostrado em #results-area-shop via JS) #}
                 <div class="tab-pane fade" id="shop-tab-pane" role="tabpanel" aria-labelledby="shop-tab" tabindex="0">
-                    {# Este painel permanece para ativar a lógica JS, mas o conteúdo visual principal é em #results-area-shop #}
-                    {# Você pode colocar um placeholder aqui se quiser, ou deixar vazio. #}
-                   
                 </div>
                 
                 {# NOVO PAINEL PARA FONTES DE TOKENS COM SUB-ABAS #}

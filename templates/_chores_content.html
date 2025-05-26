@@ -1,34 +1,31 @@
 {# templates/_chores_content.html #}
 
-{% if farm_id_submitted and chores_data is defined %}
-    <div class="card shadow-sm">
-        <div class="card-header bg-light">
-            <h4 class="mb-0 text-success">
-                <i class="bi bi-check2-square me-2"></i>Painel de Afazeres (Chores)
-            </h4>
-        </div>
-        <div class="card-body">
-            {% if chores_data %}
-                {# LINHA MODIFICADA ABAIXO #}
-                <div class="bounties-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;"> {# Adicionado display: grid; #}
+{% if farm_id_submitted %} {# Garante que só tentamos renderizar após uma busca #}
+
+    {# --- Seção de Exibição dos Chores Atuais (painel de afazeres) --- #}
+    <h4 class="text-success mb-3 mt-2"><i class="bi bi-check2-square me-2"></i>Painel de Afazeres (Chores)</h4>
+    {% if chores_data is defined and chores_data %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="bounties-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
                     {% for chore in chores_data %}
+                        {# ... (código do card individual do chore - como na sua última versão, que estava funcionando) ... #}
                         <div class="card h-100 chore-card {% if chore.is_completed_api %}border-success bg-success-subtle{% else %}border-primary{% endif %}">
-                            <div class="row g-0 h-100"> {# g-0 para remover gutters, h-100 para altura total #}
-                                <div class="col-4"> {# Coluna da imagem #}
+                            <div class="row g-0 h-100">
+                                <div class="col-4">
                                     {% set npc_filename_base = chore.npc_key_for_filename | lower %}
                                     {% set npc_image_path = 'images/npcs/' + npc_filename_base + '.png' %}
                                     <img src="{{ url_for('static', filename=npc_image_path) }}"
                                          alt="{{ chore.npc_name }}"
-                                         class="img-fluid rounded-start w-100 h-100" {# Preenche a coluna, borda arredondada #}
+                                         class="img-fluid rounded-start w-100 h-100"
                                          style="object-fit: contain; background-color: #f0f0f0; image-rendering: pixelated;"
                                          data-placeholder-url="{{ url_for('static', filename='images/misc/placeholder_npc.png') }}"
                                          onerror="this.style.backgroundColor='#e0e0e0'; this.src=this.dataset.placeholderUrl; this.onerror=null;">
-                                    {# Fallback para placeholder. Certifique-se que 'images/misc/placeholder_npc.png' exista #}
                                 </div>
-                                <div class="col-8 d-flex flex-column"> {# Coluna do conteúdo #}
-                                    <div class="card-body p-2 d-flex flex-column"> {# Padding reduzido, mantém flex-column para mt-auto #}
+                                <div class="col-8 d-flex flex-column">
+                                    <div class="card-body p-2 d-flex flex-column">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <div class="flex-grow-1 me-2"> {# Espaço para o badge #}
+                                            <div class="flex-grow-1 me-2">
                                                 <h6 class="card-title mb-0 {% if chore.is_completed_api %}text-success{% else %}text-primary{% endif %}" style="font-size: 0.9rem;">
                                                     <strong>{{ chore.npc_name }}:</strong><br>
                                                     <span style="font-weight: normal; font-size: 0.85em;">{{ chore.description }}</span>
@@ -40,30 +37,20 @@
                                                 <span class="badge bg-warning text-dark ms-auto align-self-center flex-shrink-0"><i class="bi bi-hourglass-split me-1"></i>Ativo</span>
                                             {% endif %}
                                         </div>
-
                                         {% if chore.is_completed_api and chore.completed_at_formatted and chore.completed_at_formatted != 'Data inválida' %}
-                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">
-                                                Concluído em: {{ chore.completed_at_formatted }}
-                                            </p>
+                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">Concluído em: {{ chore.completed_at_formatted }}</p>
                                         {% elif not chore.is_completed_api and chore.started_at_formatted and chore.started_at_formatted != 'Data inválida' %}
-                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">
-                                                Iniciado em: {{ chore.started_at_formatted }}
-                                            </p>
+                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">Iniciado em: {{ chore.started_at_formatted }}</p>
                                         {% endif %}
-                                        
-                                        <hr class="my-1"> {# Margem do hr reduzida #}
-
+                                        <hr class="my-1">
                                         <div class="mt-auto"> 
                                             <strong class="d-block mb-1" style="font-size: 0.8em;">Recompensa(s):</strong>
                                             {% if chore.base_seasonal_tickets > 0 or chore.final_seasonal_tickets > 0 %}
                                                 <div class="mb-1 d-flex align-items-center" style="font-size: 0.8rem;">
-                                                    {% set token_icon_filename = 'images/misc/' + token_name | lower + '.png' %}
-                                                    <img src="{{ url_for('static', filename=token_icon_filename) }}" 
-                                                         alt="{{ token_name }}" 
-                                                         style="width: 16px; height: 16px;" 
-                                                         class="me-1 flex-shrink-0"
-                                                         onerror="this.style.display='none';"> 
-
+                                                    {% set chore_token_icon_filename = 'images/misc/' + token_name | lower + '.png' %}
+                                                    <img src="{{ url_for('static', filename=chore_token_icon_filename) }}" 
+                                                         alt="{{ token_name }}" style="width: 16px; height: 16px;" 
+                                                         class="me-1 flex-shrink-0" onerror="this.style.display='none';"> 
                                                     <span class="fw-bold me-1">{{ chore.final_seasonal_tickets }} {{ token_name }}</span>
                                                     {% if chore.bonus_applied_to_tickets and chore.bonus_amount_tickets > 0 %}
                                                         <span class="text-success small" title="Bônus aplicado">(+{{ chore.bonus_amount_tickets }})</span>
@@ -71,30 +58,76 @@
                                                 </div>
                                             {% endif %}
                                             {% for other_reward in chore.other_rewards_formatted %}
-                                                <div class="small text-muted mb-0" style="font-size: 0.75rem;">{{ other_reward }}</div> {# Fonte e margem reduzidas #}
+                                                <div class="small text-muted mb-0" style="font-size: 0.75rem;">{{ other_reward }}</div>
                                             {% endfor %}
                                             {% if not (chore.base_seasonal_tickets > 0 or chore.final_seasonal_tickets > 0) and not chore.other_rewards_formatted %}
-                                                <div class="small text-muted" style="font-size: 0.75rem;">Nenhuma recompensa principal.</div>
+                                                <div class="small text-muted" style="font-size: 0.75rem;">Nenhuma recompensa principal em {{token_name}}.</div>
                                             {% endif %}
                                         </div>
-                                    {# ... fim do card ... #}
                                     </div>
                                 </div>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
-            {% else %}
-                <div class="alert alert-light text-center" role="alert">
-                    <i class="bi bi-info-circle me-1"></i> Nenhum afazer encontrado para esta fazenda no momento.
-                </div>
+            </div>
+        </div>
+    {% elif chores_data is defined and not chores_data %}
+        <div class="alert alert-light text-center" role="alert">
+            <i class="bi bi-info-circle me-1"></i> Nenhum afazer ativo encontrado para esta fazenda no momento.
+        </div>
+    {% elif chores_data is not defined %}
+        <div class="alert alert-warning" role="alert">
+            Os dados dos afazeres ativos não puderam ser carregados.
+        </div>
+    {% endif %}
+    {# --- Fim da Seção de Chores Atuais --- #}
+
+
+    {# --- SEÇÃO ANÁLISE HISTÓRICA DE CHORES --- #}
+    <hr class="my-4"> 
+    <h4 class="text-info mb-3"><i class="bi bi-bar-chart-line-fill me-2"></i>Análise Histórica de Afazeres (Chores)</h4>
+    <div class="card border-info shadow-sm mb-3">
+        <div class="card-body">
+            {% if analise_chores is defined and analise_chores is not none %}
+                {# ... (lógica interna para exibir status e dados de analise_chores, como na sua última versão funcional) ... #}
+                {% if analise_chores.status == 'sem_historico' %}
+                    <p class="text-muted mb-0"><em>{{ analise_chores.mensagem | default('Nenhum histórico de afazeres encontrado para análise para o período selecionado.') }}</em></p>
+                {% elif analise_chores.status in ['erro_analise_chores', 'erro_calculo_base'] or analise_chores.get('erro') %}
+                    <div class="alert alert-danger small mb-0" role="alert">
+                        Não foi possível gerar a análise histórica de afazeres: {{ analise_chores.mensagem_erro | default(analise_chores.get('erro', 'Erro desconhecido.')) }}
+                    </div>
+                {% elif analise_chores.status == 'ok' %}
+                    <h5 class="card-title">Resumo do Período Analisado</h5>
+                    {% if analise_chores.periodo_analisado and analise_chores.periodo_analisado != 'N/A' and analise_chores.dias_analisados is defined %}
+                        <p class="card-text small mb-2">
+                            <i class="bi bi-calendar-range me-1"></i> Período: <strong>{{ analise_chores.periodo_analisado }}</strong> 
+                            ({% if analise_chores.dias_analisados == 1 %}1 dia{% else %}{{ analise_chores.dias_analisados }} dias{% endif %} no histórico)
+                        </p>
+                    {% else %}
+                        <p class="card-text small mb-2 text-muted">Período de análise não determinado.</p>
+                    {% endif %}
+                    <p class="card-text">
+                        Total de Afazeres Concluídos (com {{ token_name }} no período): <strong>{{ analise_chores.total_conclusoes | default(0) }}</strong><br>
+                        Total de {{ token_name }} (Base): <strong>{{ analise_chores.total_tokens_base | default(0) }}</strong><br>
+                        Total de {{ token_name }} (Estimado com Bônus): <strong class="text-info">{{ analise_chores.total_tokens_estimados | default(0) }}</strong>
+                    </p>
+                    {% if not analise_chores.dados_completos and analise_chores.total_conclusoes > 0 %}
+                        <div class="alert alert-warning small mt-2 mb-0" role="alert">Atenção: A análise pode estar baseada em dados parciais.</div>
+                    {% elif analise_chores.total_conclusoes == 0 and analise_chores.dias_analisados > 0 %}
+                         <p class="small text-muted mb-0 mt-2"><em>Nenhum afazer com recompensa em {{token_name}} foi detectado como concluído neste período.</em></p>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted mb-0"><em>Aguardando dados para exibir a análise histórica de afazeres.</em></p>
+                {% endif %}
+            {% else %} {# analise_chores não está definida ou é None #}
+                <p class="text-muted mb-0"><em>A análise histórica de afazeres não está disponível ou não pôde ser carregada.</em></p>
             {% endif %}
         </div>
     </div>
-{% elif farm_id_submitted %}
-    <div class="alert alert-warning" role="alert">
-        Os dados dos afazeres não puderam ser carregados.
+{% elif not farm_id_submitted %} {# Se nenhum farm ID foi submetido ainda para a página inteira #}
+    <div class="alert alert-info mt-3">
+        Por favor, busque um Farm ID para ver os dados de afazeres e sua análise histórica.
     </div>
-{% else %}
-    {# Não mostra nada se nenhum farm_id foi submetido ainda #}
 {% endif %}
+{# --- FIM SEÇÃO ANÁLISE HISTÓRICA DE CHORES --- #}

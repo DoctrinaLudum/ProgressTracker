@@ -48,6 +48,10 @@ SNAPSHOTS_COLLECTION = "daily_snapshots_v2"
 NPC_STATE_COLLECTION = "delivery_npc_state_v2"
 BOUNTIES_COLLECTION = "bounties"
 
+# Conjunto para rastrear avisos de snapshots não encontrados e evitar repetição
+# Armazenará tuplas (farm_id_int, target_date_str)
+_warned_missing_snapshots_log_cache = set()
+
 # ---> get_sfl_world_prices <---
 price_cache = {
     "data": None, "last_fetch_time": 0, "cache_duration_seconds": 3600 # 1 hora
@@ -214,13 +218,143 @@ def check_snapshot_exists(farm_id, target_date_str):
 # ---> FIM check_snapshot_exists <---
 
 # ---> create_snapshot_if_needed (VERSÃO FINAL LIMPA) <---
-def create_snapshot_if_needed(farm_id, all_general_npc_data, active_delivery_orders):
+def create_snapshot_if_needed(farm_id, all_farm_api_data, active_delivery_orders): # Mudança no segundo parâmetro
     """
-    Verifica/cria UM snapshot diário POR FAZENDA contendo um mapa de NPCs relevantes,
-    com dados otimizados (contadores e custo SFL da entrega ativa).
-    'all_general_npc_data' refere-se à seção 'npcs' da API.
+    Verifica/cria UM snapshot diário POR FAZENDA contendo um mapa de NPCs relevantes (deliveries)
+    e o estado do choreBoard.
+    'all_farm_api_data' refere-se ao objeto 'farm' completo da API.
     'active_delivery_orders' refere-se à lista 'delivery.orders' da API.
     """
+    if not db:
+        log.error("DB não inicializado - create_snapshot falhou.")
+        return
+    # all_farm_api_data é o objeto farm['farm'] da API
+    if not all_farm_api_data or not isinstance(all_farm_api_data, dict):
+        log.warning("Dados completos da fazenda (all_farm_api_data) ausentes ou inválidos para create_snapshot.")
+        return
+
+    try:
+        farm_id_int = int(farm_id)
+    except (ValueError, TypeError):
+        log.error(f"Farm ID inválido '{farm_id}' em create_snapshot.")
+        return
+
+    today_date_str = datetime.now().strftime('%Y-%m-%d')
+
+    if check_snapshot_exists(farm_id_int, today_date_str):
+        log.info(f"Snapshot para Farm {farm_id_int} no dia {today_date_str} já existe. Pulando criação.")
+        return
+
+    log.info(f"Criando snapshot único para Farm {farm_id_int} no dia {today_date_str}...")
+    snapshot_doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(f"{farm_id_int}_{today_date_str}")
+    snapshot_data_to_save = {
+        'farm_id': farm_id_int,
+        'date': today_date_str,
+        'created_at': SERVER_TIMESTAMP,
+        'npcs': {}, # Para os dados de delivery NPCs
+        'chores_board_state': {} # NOVA CHAVE PARA CHORES
+    }
+    prices = get_sfl_world_prices() or {}
+    if not prices:
+        log.warning("Não foi possível obter a lista de PREÇOS para o cálculo de custo do snapshot (deliveries).")
+
+    # --- Processamento de NPCs de Delivery (código existente, adaptado para usar all_farm_api_data) ---
+    all_general_npc_data = all_farm_api_data.get('npcs', {}) # 'npcs' está dentro do objeto 'farm'
+    npcs_to_process_config = config.BASE_DELIVERY_REWARDS.keys()
+    npcs_deliveries_added_count = 0
+
+    if not npcs_to_process_config:
+        log.warning("Nenhum NPC relevante definido em config.BASE_DELIVERY_REWARDS para snapshots de delivery.")
+    elif not isinstance(all_general_npc_data, dict):
+        log.warning("Dados de all_general_npc_data (farm_api_data['npcs']) não é um dicionário. Pulando processamento de NPCs de delivery.")
+    else:
+        for npc_id_from_config in npcs_to_process_config:
+            general_npc_data = all_general_npc_data.get(npc_id_from_config)
+            if general_npc_data and isinstance(general_npc_data, dict):
+                delivery_count = general_npc_data.get('deliveryCount')
+                skipped_count = general_npc_data.get('skippedCount', 0)
+                if skipped_count is None: skipped_count = 0
+                if delivery_count is None:
+                    log.warning(f"Contador 'deliveryCount' ausente para NPC de delivery '{npc_id_from_config}'. Não incluído no snapshot de delivery.")
+                    continue
+                estimated_daily_cost = 0.0
+                active_order_for_npc = None
+                if isinstance(active_delivery_orders, list):
+                    for order in active_delivery_orders:
+                        if isinstance(order, dict) and order.get('from') == npc_id_from_config:
+                            active_order_for_npc = order
+                            break
+                if active_order_for_npc:
+                    reward_info = active_order_for_npc.get('reward')
+                    if reward_info is None or (isinstance(reward_info, dict) and not reward_info):
+                        delivery_items_info = active_order_for_npc
+                        if prices and isinstance(delivery_items_info, dict) and delivery_items_info:
+                            items_dict = delivery_items_info.get('items')
+                            if isinstance(items_dict, dict) and items_dict:
+                                current_cost_sum = 0.0
+                                try:
+                                    for item, amount in items_dict.items():
+                                        item_amount = amount or 0
+                                        item_price = prices.get(item, 0.0) # Default para 0.0 se não encontrado
+                                        try: item_price = float(item_price)
+                                        except (ValueError, TypeError): item_price = 0.0
+                                        current_cost_sum += item_amount * item_price
+                                    estimated_daily_cost = round(current_cost_sum, 4)
+                                except Exception as e_cost:
+                                    log.exception(f"Erro crítico calculando custo SFL para snapshot NPC delivery {npc_id_from_config}: {e_cost}")
+                snapshot_data_to_save['npcs'][npc_id_from_config] = {
+                    'deliveryCount': delivery_count,
+                    'skipCount': skipped_count,
+                    'estimated_daily_cost_sfl': estimated_daily_cost
+                }
+                npcs_deliveries_added_count += 1
+            else:
+                log.warning(f"Dados GERAIS da API (em 'npcs') não encontrados ou inválidos para NPC de delivery '{npc_id_from_config}'.")
+
+    # --- NOVO: Processamento de Chores ---
+    raw_chores_data_from_api = all_farm_api_data.get('choreBoard', {}).get('chores', {}) # 'choreBoard' está dentro do objeto 'farm'
+    chores_added_to_snapshot_count = 0
+    if isinstance(raw_chores_data_from_api, dict) and raw_chores_data_from_api:
+        log.info(f"Processando {len(raw_chores_data_from_api)} chores para o snapshot do Farm {farm_id_int}.")
+        seasonal_token_key = config.SEASONAL_TOKEN_NAME # Ex: "Geniseed"
+
+        for npc_giver_name, chore_details_api in raw_chores_data_from_api.items():
+            if not isinstance(chore_details_api, dict):
+                log.warning(f"Detalhes do chore para NPC '{npc_giver_name}' no snapshot não são um dicionário. Pulando.")
+                continue
+
+            reward_items = chore_details_api.get("reward", {}).get("items", {})
+            seasonal_tokens_in_reward = 0
+            if isinstance(reward_items.get(seasonal_token_key), (int, float)):
+                seasonal_tokens_in_reward = reward_items[seasonal_token_key]
+
+            snapshot_data_to_save['chores_board_state'][npc_giver_name] = {
+                'description': chore_details_api.get("name", "N/A"),
+                'reward_items': reward_items, # Salva todos os itens da recompensa
+                'seasonal_token_reward': seasonal_tokens_in_reward, # Especificamente o valor do token sazonal
+                'startedAt': chore_details_api.get("startedAt"), # Timestamp
+                'completedAt': chore_details_api.get("completedAt") # Timestamp, pode ser null
+            }
+            chores_added_to_snapshot_count += 1
+        log.info(f"{chores_added_to_snapshot_count} chores adicionados ao 'chores_board_state' do snapshot.")
+    else:
+        log.info(f"Nenhum chore encontrado ou dados de choreBoard inválidos para o snapshot do Farm {farm_id_int}.")
+    # --- FIM: Processamento de Chores ---
+
+    try:
+        snapshot_doc_ref.set(snapshot_data_to_save)
+        if npcs_deliveries_added_count > 0 or chores_added_to_snapshot_count > 0 :
+            log.info(f"Snapshot único criado com sucesso para Farm {farm_id_int} dia {today_date_str} com {npcs_deliveries_added_count} NPCs de delivery e {chores_added_to_snapshot_count} chores.")
+        else:
+             log.info(f"Snapshot único criado para Farm {farm_id_int} dia {today_date_str} (sem dados de NPC de delivery ou chores para salvar).")
+    except Exception as e:
+        log.exception(f"Erro ao salvar snapshot único para Farm {farm_id_int} dia {today_date_str}: {e}")    
+        """
+        Verifica/cria UM snapshot diário POR FAZENDA contendo um mapa de NPCs relevantes,
+        com dados otimizados (contadores e custo SFL da entrega ativa).
+        'all_general_npc_data' refere-se à seção 'npcs' da API.
+        'active_delivery_orders' refere-se à lista 'delivery.orders' da API.
+        """
     if not db: 
         log.error("DB não inicializado - create_snapshot falhou.")
         return
@@ -366,7 +500,12 @@ def get_snapshot_from_db(farm_id, npc_id, target_date_str):
                 log.warning(f"Snapshot {doc_id} existe mas .to_dict() retornou None.")
                 return None
         else: 
-            log.warning(f"Snapshot NÃO encontrado para o dia/fazenda: {doc_id}")
+            # Verifica se já logamos um aviso para esta combinação específica
+            log_key = (farm_id_int, target_date_str)
+            if log_key not in _warned_missing_snapshots_log_cache:
+                log.warning(f"Snapshot NÃO encontrado para o dia/fazenda: {doc_id}")
+                # Adiciona à "memória" para não logar novamente para esta combinação
+                _warned_missing_snapshots_log_cache.add(log_key)
             return None
     except ValueError:
          log.error(f"Farm ID ou data inválida ao buscar snapshot (mapa): farm='{farm_id}', date='{target_date_str}'.")
@@ -554,3 +693,36 @@ def get_active_bounties(farm_id: str):
         log.exception(f"Erro ao buscar bounties ATIVAS do Firestore: {e}")
         return []
 # ---> FIM get_active_bounties <---
+
+# ---> get_snapshot_chore_board_state <---
+def get_snapshot_chore_board_state(farm_id, target_date_str):
+    """
+    Busca apenas a seção 'chores_board_state' do snapshot diário da fazenda.
+    Retorna o dicionário de 'chores_board_state' ou None se não encontrado/erro.
+    """
+    if not db:
+        log.error("DB não inicializado - get_snapshot_chore_board_state falhou.")
+        return None
+    try:
+        farm_id_int = int(farm_id)
+        doc_id = f"{farm_id_int}_{target_date_str}"
+        doc_ref = db.collection(SNAPSHOTS_COLLECTION).document(doc_id)
+        
+        snapshot = doc_ref.get()
+        if snapshot.exists:
+            farm_day_data = snapshot.to_dict()
+            if farm_day_data and isinstance(farm_day_data.get('chores_board_state'), dict):
+                return farm_day_data.get('chores_board_state')
+            else:
+                log.warning(f"'chores_board_state' não encontrado ou não é um dict no snapshot {doc_id}.")
+                return None # Retorna None se a chave não existir ou não for um dict
+        else:
+            log.debug(f"Snapshot NÃO encontrado para o dia/fazenda ao buscar chore_board_state: {doc_id}")
+            return None
+    except ValueError:
+         log.error(f"Farm ID ou data inválida ao buscar chore_board_state: farm='{farm_id}', date='{target_date_str}'.")
+         return None
+    except Exception as e:
+        log.exception(f"Erro ao buscar chore_board_state do snapshot {farm_id}_{target_date_str}: {e}")
+        return None
+# ---> FIM get_snapshot_chore_board_state <---

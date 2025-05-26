@@ -1,114 +1,185 @@
 {# templates/_deliveries_content.html #}
-{# Conteúdo da aba "Entregas Diárias" #}
 
-{# --- Seção Taxa de Conclusão (Cards) --- #}
-{% if npc_rates %}
-    <h3 class="text-success mb-3">Taxa de Conclusão de Entregas</h3>
-    <div class="row">
-        {# Loop que gera os cards dos NPCs com as taxas #}
-        {% for npc_name, rate in npc_rates.items() %}{% set npc_info = farm_data.npcs.get(npc_name, {}) %} <div class="col-md-4 col-sm-6 mb-3"> <div class="card h-100 border-success"> <div class="card-header bg-success-subtle"> <h5 class="card-title mb-0">{{ npc_name.replace("_", " ").title() }}</h5> </div> <div class="card-body d-flex flex-column pt-2"> <p class="card-text mb-1">Taxa: <strong>{{ rate if rate != 'N/A' else 'N/A' }}{% if rate != 'N/A' %}%{% endif %}</strong></p> <p class="card-text small text-muted">Entregas: {{ npc_info.get('deliveryCount', 'N/A') }} | Skips: {{ npc_info.get('skippedCount', 'N/A') }}</p> {% set delivery = npc_info.get('delivery', {}) %} {% if delivery and delivery.get('items') and delivery['items'] %} <p class="card-text small mt-auto mb-0 pt-2"><strong>Entrega Ativa:</strong></p> <ul class="list-unstyled small text-muted mb-0"> {% for item, amount in delivery['items'].items() %}<li>{{ item }}: {{ amount }}</li>{% endfor %} </ul> {% elif npc_info.get('deliveryCompletedAt') %} <p class="card-text small text-muted mt-auto mb-0 pt-2"><i>Nenhuma entrega ativa.</i></p> {% else %} <p class="card-text small text-muted mt-auto mb-0 pt-2"><i>(...)</i></p> {% endif %} </div> </div> </div> {% else %} {% if loop.first %}<div class="col"><p>Nenhuma taxa calculada.</p></div>{% endif %} {% endfor %}
-    </div>
-     <hr class="my-4">
-{% endif %} {# Fim da seção npc_rates #}
+{% if farm_id_submitted %} {# Garante que só tentamos renderizar após uma busca #}
+    
+    {# --- Seção Taxa de Conclusão e Detalhes de Entregas (NPCs) --- #}
+    <h4 class="text-success mb-3 mt-2"><i class="bi bi-truck me-2"></i>Entregas Atuais e Taxas de Conclusão (NPCs)</h4>
+    {# Iterar sobre os NPCs definidos em config.py, pois queremos um card para cada um deles #}
+    {# Assegure-se que 'config' está no contexto (o que já está, vindo do main.py) #}
+    {% if config.BASE_DELIVERY_REWARDS and config.BASE_DELIVERY_REWARDS is mapping and config.BASE_DELIVERY_REWARDS|length > 0 %}
+        <div class="row">
+            {% for npc_name_config in config.BASE_DELIVERY_REWARDS.keys()|sort %} {# Itera sobre os NPCs esperados #}
+                {% set rate = npc_rates.get(npc_name_config, 'N/A') %}
+                {% set npc_api_data = farm_data_display.get('npcs', {}).get(npc_name_config, {}) %}
+                {% set delivery_count = npc_api_data.get('deliveryCount', 'N/A') %}
+                {% set skipped_count = npc_api_data.get('skippedCount', 'N/A') %}
 
-{# --- Seção Análise Histórica de Entregas --- #}
-{% if analise_tokens is defined %}
-    <h3 class="text-success"> Análise Histórica ({{ token_name }} e Custos de Entregas...)</h3> {# Nome do Token #}
-    <div class="card border-success">
-        <div class="card-body">
-             {# Tratamento de Status (Resumido por brevidade, mantenha o seu completo) #}
-             {% if analise_tokens and analise_tokens.get('status') == 'sem_historico' %} <p class="text-muted"><em>{{ analise_tokens.mensagem | default('Nenhum histórico encontrado.') }}</em></p> {% elif analise_tokens and analise_tokens.get('status') == 'dados_insuficientes' %} <div class="alert alert-info small" role="alert">{{ analise_tokens.mensagem | default('Histórico insuficiente.') }}</div> {% elif analise_tokens and analise_tokens.get('erro') %} <div class="alert alert-danger" role="alert">Não foi possível gerar a análise: {{ analise_tokens.erro }}</div> {% elif not analise_tokens and request.method == 'POST' %} <p class="text-muted"><i>Erro ao preparar dados da análise.</i></p> {% elif request.method != 'POST' %} <p class="text-muted"><i>A análise histórica será exibida aqui...</i></p> {% endif %}
-
-             {# Exibe o resumo e a tabela #}
-            {% if analise_tokens and not analise_tokens.get('erro') and analise_tokens.get('status') != 'sem_historico' %}
-                {% if not analise_tokens.dados_completos and analise_tokens.get('status') != 'dados_insuficientes' %} <div class="alert alert-warning small" role="alert">Atenção: A análise pode estar incompleta...</div> {% endif %}
-
-                <h5 class="card-title">Resumo do Período Analisado</h5>
-                {% if analise_tokens.periodo_analisado %}
-                <p class="card-text small mb-2">
-                    <i class="bi bi-calendar-range me-1"></i> {# Ícone opcional #}
-                    Período: {{ analise_tokens.periodo_analisado }}
-                </p>
-     {% endif %}
-                <p class="card-text">
-                    Total Conclusões: <strong>{{ analise_tokens.total_conclusoes }}</strong><br>
-                    Total {{ token_name }} (Est.): <strong>{{ analise_tokens.total_tokens_estimados }}</strong>
-                    {# --- LÓGICA ATUALIZADA PARA EXIBIR BÔNUS DETALHADO --- #}
-                    {% if delivery_bonus > 0 and active_bonus_details is defined %} {# Verifica se temos os detalhes #}
-                        <small class="text-muted" title="Bônus considerado nos cálculos">
-                            (Bônus:
-                            {% set parts = [] %} {# Cria lista vazia #}
-                            {# Verifica VIP #}
-                            {% if active_bonus_details.get('vip') %}
-                                {# Pega o valor do bônus VIP da config (requer importar config ou passar os valores) #}
-                                {# Para simplificar, vamos assumir +2 se 'vip' estiver ativo #}
-                                {% set _ = parts.append('VIP +2') %}
+                <div class="col-md-4 col-sm-6 mb-3">
+                    <div class="card h-100 shadow-sm {% if rate == 100 %}border-success{% elif rate == 'N/A' and delivery_count == 'N/A' %}border-light{% elif rate == 'N/A' %}border-secondary{% else %}border-warning{% endif %}">
+                        <div class="card-header {% if rate == 100 %}bg-success-subtle{% elif rate == 'N/A' and delivery_count == 'N/A' %}bg-white{% elif rate == 'N/A' %}bg-light{% else %}bg-warning-subtle{% endif %}">
+                            <h5 class="card-title mb-0" style="font-size: 1rem;">{{ npc_name_config.replace("_", " ").title() }}</h5>
+                        </div>
+                        <div class="card-body d-flex flex-column pt-2">
+                            <p class="card-text mb-1">
+                                Taxa de Conclusão: 
+                                <strong>
+                                    {{ rate if rate != 'N/A' else 'N/A' }}{% if rate != 'N/A' and rate is number %}%{% endif %}
+                                </strong>
+                            </p>
+                            <p class="card-text small text-muted">
+                                Entregas Feitas: {{ delivery_count }} | Skips: {{ skipped_count }}
+                            </p>
+                            
+                            {% set delivery_info = npc_api_data.get('delivery', {}) %}
+                            {% if delivery_info and delivery_info.get('items') and delivery_info['items'] %}
+                                <p class="card-text small mt-auto mb-0 pt-2 border-top"><strong>Requer para Entrega Ativa:</strong></p>
+                                <ul class="list-unstyled small text-muted mb-0" style="font-size: 0.75rem;">
+                                    {% for item, amount in delivery_info['items'].items() %}
+                                        <li>{{ item.replace("_", " ").title() }}: {{ amount }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% elif npc_api_data.get('deliveryCompletedAt') %}
+                                <p class="card-text small text-muted mt-auto mb-0 pt-2 border-top"><i>Nenhuma entrega ativa (última completa).</i></p>
+                            {% elif delivery_count != 'N/A' %} {# Se temos contagem, mas nenhuma entrega ativa nos dados da API #}
+                                <p class="card-text small text-muted mt-auto mb-0 pt-2 border-top"><i>Nenhuma entrega ativa listada pela API.</i></p>
+                            {% else %}
+                                <p class="card-text small text-muted mt-auto mb-0 pt-2 border-top"><i>Sem dados de entrega para este NPC.</i></p>
                             {% endif %}
-                            {# Verifica Itens (Equipados + Colecionáveis) #}
-                            {% set item_bonus_val = 0 %}
-                            {% set item_names = [] %}
-                            {# Itera sobre os detalhes dos bônus ATIVOS que NÃO são 'vip' #}
-                            {% for key, active in active_bonus_details.items() %}
-                                {% if key != 'vip' and active %}
-                                     {# Pega o valor do bônus para este item da config #}
-                                     {# IMPORTANTE: Isso requer que config.SEASONAL_DELIVERY_BUFFS esteja acessível aqui #}
-                                     {# Se não estiver, calculamos o bônus restante #}
-                                     {# Vamos usar a abordagem de calcular o restante por simplicidade #}
-                                     {# Este bloco calcula o bônus total SÓ dos itens ativos #}
-                                {% endif %}
-                            {% endfor %}
-                            {# Calcula bônus de itens como Bônus Total - Bônus VIP (se houver) #}
-                            {% set vip_bonus_val = config.SEASONAL_DELIVERY_BUFFS.get('vip', {}).get('bonus', 0) if active_bonus_details.get('vip') else 0 %}
-                            {% set item_bonus_val = delivery_bonus - vip_bonus_val %}
-                            {% if item_bonus_val > 0 %}
-                                {% set _ = parts.append('Itens +' + item_bonus_val|string) %}
-                            {% endif %}
-
-                            {# Junta as partes com ', ' e mostra o total #}
-                            {{ parts | join(', ') }}
-                            {% if parts|length > 0 %}= +{{ delivery_bonus }} total por entrega){% else %}+{{ delivery_bonus }} total por entrega){% endif %}{# Evita mostrar '= +...' se não houver partes #}
-                        </small>
-                    {% endif %}
-                    {# --- FIM DA LÓGICA DO BÔNUS DETALHADO --- #}
-                    <br>
-                    Custo Total Flower (Est.): <strong>~{{ "%.2f"|format(analise_tokens.total_custo_estimado_sfl|float) }}</strong>
-                </p>
-                 {# Disclaimer Completo #}
-                 <p class="card-text"><small class="text-muted"><strong>Importante - Custo Estimado:</strong> O valor apresentado como 'Custo Total Estimado (Flower)' é uma aproximação. Ele é calculado usando dados diários de itens e preços de mercado para estimar o custo acumulado das entregas que geraram tokens sazonais. Devido à natureza variável do jogo e limitações na obtenção de dados históricos exatos, este valor é fornecido apenas como referência e não possui garantia de precisão absoluta. O desenvolvedor não se responsabiliza por decisões tomadas com base nesta estimativa. </small></p>
-
-                {# Tabela de detalhes #}
-                {% if analise_tokens.detalhes_por_npc %}
-                    <h6 class="card-subtitle mt-3 mb-2 text-muted">Detalhes por NPC</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped table-hover">
-                             <thead class="bg-success-subtle">
-                                <tr>
-                                    <th>NPC</th>
-                                    <th class="text-end">Conclusões</th>
-                                    <th class="text-end">{{ token_name }} (Est.)</th> {# Nome do Token #}
-                                    <th class="text-end">Custo SFL (Est.)</th>
-                                </tr>
-                             </thead>
-                             <tbody>
-                             {% for npc, data in analise_tokens.detalhes_por_npc.items() %}
-                                <tr>
-                                    <td>{{ npc.replace('_', ' ').title() }}</td>
-                                     {% if data.get('status') == 'dados_insuficientes' %} <td colspan="3" class="text-center"><em class="text-muted small">Dados insuficientes</em></td> {% elif data.get('status') == 'erro_calculo' %} <td colspan="3" class="text-center"><em class="text-danger small">Erro: {{ data.get('mensagem_erro', 'Falha') }}</em></td> {% else %}
-                                        <td class="text-end"> {{ data.get('conclusoes', 0) }} {% if data.get('is_accumulated') %} <sup title="Valor acumulado..." class="accumulation-indicator-star">*</sup> {% endif %} </td>
-                                        <td class="text-end">{{ data.get('tokens_estimados', 0) }}</td>
-                                        <td class="text-end"> ~{{ "%.2f"|format(data.get('custo_total_estimado_sfl', 0.0)|float) }} {% if data.get('custo_status') == 'parcial' %}<span>*</span>{% endif %} {% if data.get('custo_status') == 'sem_registros' %}<span title="Sem registros de custo" class="na-indicator"> N/D</span>{% endif %} </td>
-                                    {% endif %}
-                                </tr>
-                             {% endfor %}
-                             </tbody>
-                        </table>
-                        {# Legenda Indicador (*) #}
-                         {% set show_legend = false %} {% for npc, data in analise_tokens.detalhes_por_npc.items() %} {% if data.get('is_accumulated') %}{% set show_legend = true %}{% endif %} {% endfor %}
-                         {% if show_legend %} <p class="small text-muted mt-2 mb-0"> <sup class="accumulation-indicator-star">*</sup> Indica valor acumulado... </p> {% endif %}
+                        </div>
                     </div>
-                {% else %}<p><small>Nenhum detalhe por NPC disponível.</small></p>
-                {% endif %} {# Fim if detalhes_por_npc #}
-            {% endif %} {# Fim if not erro and status != sem_historico #}
-        </div> {# Fim card-body Análise Histórica #}
-    </div> {# Fim card Análise Histórica #}
-{% endif %} {# Fim if analise_tokens defined #}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-secondary" role="alert">
+            Nenhum NPC de delivery configurado para exibição. Verifique `config.BASE_DELIVERY_REWARDS`.
+        </div>
+    {% endif %}
+    {# --- Fim da seção de cards de Entregas Atuais e Taxas --- #}
+
+    <hr class="my-4">
+
+    {# --- Seção Análise Histórica de Entregas --- #}
+    {# O restante desta seção permanece como na sua última versão funcional, pois ela já é robusta #}
+    {# para mostrar "sem histórico", "erro" ou os dados (mesmo que zerados) #}
+    <h4 class="text-success mb-3"><i class="bi bi-bar-chart-line-fill me-2"></i>Análise Histórica de Entregas</h4>
+    <div class="card border-success shadow-sm mb-3">
+        <div class="card-body">
+            {% if analise_tokens is defined and analise_tokens is not none %}
+                {% if analise_tokens.status == 'sem_historico' %}
+                    <p class="text-muted mb-0">
+                        <em>{{ analise_tokens.mensagem | default('Nenhum histórico de entregas encontrado para análise para o período selecionado.') }}</em>
+                    </p>
+                {% elif analise_tokens.status == 'dados_insuficientes' %}
+                     <p class="text-muted mb-0">
+                        <em>{{ analise_tokens.mensagem | default('Dados históricos insuficientes para uma análise completa das entregas.') }}</em>
+                    </p>
+                {% elif analise_tokens.status in ['erro_analise', 'erro', 'erro_calculo_taxa'] or analise_tokens.get('erro') %}
+                    <div class="alert alert-danger small mb-0" role="alert">
+                        Não foi possível gerar a análise histórica de entregas: 
+                        {{ analise_tokens.mensagem | default(analise_tokens.get('erro', 'Erro desconhecido ou dados insuficientes para calcular a taxa real.')) }}
+                        {% if avg_daily_rate_status == 'erro_calculo_taxa' %} {# Exibe esta mensagem específica do avg_daily_rate_status #}
+                            <br><small>Uma taxa padrão será usada para as projeções na loja.</small>
+                        {% endif %}
+                    </div>
+                {% elif analise_tokens.status == 'ok' %}
+                    <h5 class="card-title">Resumo do Período Analisado</h5>
+                    {% if analise_tokens.periodo_analisado and analise_tokens.periodo_analisado != 'N/A' and analise_tokens.dias_analisados is defined %}
+                        <p class="card-text small mb-2">
+                            <i class="bi bi-calendar-range me-1"></i>
+                            Período: <strong>{{ analise_tokens.periodo_analisado }}</strong>
+                            {% if analise_tokens.dias_analisados == 1 %}
+                                (1 dia no histórico)
+                            {% elif analise_tokens.dias_analisados > 1 %}
+                                ({{ analise_tokens.dias_analisados }} dias no histórico)
+                            {% else %}
+                                 (Período não determinado ou sem snapshots válidos)
+                            {% endif %}
+                        </p>
+                    {% else %}
+                         <p class="card-text small mb-2 text-muted">Período de análise não determinado.</p>
+                    {% endif %}
+
+                    <p class="card-text">
+                        Total Conclusões (no período): <strong>{{ analise_tokens.total_conclusoes | default(0) }}</strong><br>
+                        Total {{ token_name }} (Est.): <strong class="text-success">{{ analise_tokens.total_tokens_estimados | default(0) }}</strong>
+                        {% if delivery_bonus > 0 and active_bonus_details is defined and active_bonus_details %}
+                            <small class="text-muted" title="Bônus considerado nos cálculos de tokens estimados.">
+                                (Bônus por entrega:
+                                {% set parts = [] %}
+                                {% if active_bonus_details.get('vip') %}{% set _ = parts.append('VIP +' + (config.SEASONAL_DELIVERY_BUFFS.get('vip', {}).get('bonus_value', 0)|string)) %}{% endif %}
+                                {% for key, active in active_bonus_details.items() if key != 'vip' and key != 'is_double_delivery_active' and active %}
+                                    {% set _ = parts.append(key + ' +' + (config.SEASONAL_DELIVERY_BUFFS.get(key, {}).get('bonus_value', 0)|string)) %}
+                                {% endfor %}
+                                {{ parts | join(', ') if parts else 'Nenhum item de bônus ativo' }}
+                                {% if active_bonus_details.get('is_double_delivery_active') %} <strong class="text-danger">| Entregas 2x Ativas!</strong>{% endif %}
+                                )
+                            </small>
+                        {% endif %}
+                        <br>
+                        Custo Total Flower (Est.): <strong>~{{ "%.2f"|format(analise_tokens.total_custo_estimado_sfl|float|default(0.0)) }}</strong>
+                    </p>
+                    <p class="card-text"><small class="text-muted"><strong>Importante - Custo Estimado:</strong> O valor 'Custo Total Estimado (Flower)' é uma aproximação baseada em dados de mercado e pode variar.</small></p>
+
+                    {% if analise_tokens.detalhes_por_npc and analise_tokens.detalhes_por_npc is mapping and analise_tokens.detalhes_por_npc|length > 0 %}
+                        <h6 class="card-subtitle mt-3 mb-2 text-muted">Detalhes por NPC</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped table-hover" style="font-size: 0.8rem;">
+                                 <thead class="bg-success-subtle">
+                                    <tr>
+                                        <th>NPC</th>
+                                        <th class="text-end">Conclusões</th>
+                                        <th class="text-end">{{ token_name }} (Est.)</th>
+                                        <th class="text-end">Custo SFL (Est.)</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody>
+                                 {% for npc, data in analise_tokens.detalhes_por_npc.items() %}
+                                    <tr>
+                                        <td>{{ npc.replace('_', ' ').title() }}</td>
+                                         {% if data.get('status') == 'dados_insuficientes' %}
+                                            <td colspan="3" class="text-center"><em class="text-muted small">Dados insuficientes para {{ npc.replace('_', ' ').title() }}</em></td>
+                                         {% elif data.get('status') == 'erro_calculo' %}
+                                            <td colspan="3" class="text-center"><em class="text-danger small">Erro: {{ data.get('mensagem_erro', 'Falha no cálculo') }}</em></td>
+                                         {% else %}
+                                            <td class="text-end"> {{ data.get('conclusoes', 0) }} {% if data.get('is_accumulated') %} <sup title="Valor acumulado devido à ausência de snapshot anterior. A mudança real no período pode ser menor." class="accumulation-indicator-star text-warning">*</sup> {% endif %} </td>
+                                            <td class="text-end">{{ data.get('tokens_estimados', 0) }}</td>
+                                            <td class="text-end"> ~{{ "%.2f"|format(data.get('custo_total_estimado_sfl', 0.0)|float) }} {% if data.get('custo_status') == 'parcial' %}<span class="text-warning">*</span>{% endif %} {% if data.get('custo_status') == 'sem_registros' %}<span title="Sem registros de custo para este NPC no período." class="na-indicator"> N/D</span>{% endif %} </td>
+                                        {% endif %}
+                                    </tr>
+                                 {% endfor %}
+                                 </tbody>
+                            </table>
+                             {% set show_legend = false %}
+                             {% if analise_tokens.detalhes_por_npc %}
+                                {% for npc, data in analise_tokens.detalhes_por_npc.items() %}
+                                    {% if data.get('is_accumulated') %}{% set show_legend = true %}{% endif %}
+                                {% endfor %}
+                             {% endif %}
+                             {% if show_legend %}
+                                <p class="small text-muted mt-2 mb-0"> <sup class="accumulation-indicator-star text-warning">*</sup> Indica que a contagem de conclusões para este NPC pode incluir entregas de antes do início do período de análise, devido à ausência de um snapshot do dia anterior para comparação inicial. A mudança real no período pode ser menor. </p>
+                             {% endif %}
+                        </div>
+                    {% elif analise_tokens.total_conclusoes > 0 %}
+                        <p class="small text-muted mt-2"><em>Nenhum detalhe adicional por NPC disponível para este período.</em></p>
+                    {% elif analise_tokens.total_conclusoes == 0 and analise_tokens.dias_analisados > 0 %}
+                        <p class="small text-muted mt-2"><em>Nenhuma entrega com recompensa em {{token_name}} foi detectada como concluída neste período.</em></p>
+                    {% endif %}
+                     {% if not analise_tokens.dados_completos and analise_tokens.total_conclusoes > 0 %}
+                        <div class="alert alert-warning small mt-2 mb-0" role="alert">
+                            Atenção: A análise de entregas pode estar baseada em dados parciais do período.
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted mb-0"><em>Aguardando dados para exibir a análise histórica de entregas.</em></p>
+                {% endif %}
+            {% else %} {# analise_tokens não está definida ou é None #}
+                <p class="text-muted mb-0"><em>A análise histórica de entregas não está disponível no momento.</em></p>
+            {% endif %}
+        </div>
+    </div>
+{% else %} {# farm_id_submitted é falso, não mostra nada de deliveries #}
+    <div class="alert alert-info mt-3">
+        Por favor, busque um Farm ID para ver os dados de entregas.
+    </div>
+{% endif %}
