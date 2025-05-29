@@ -1,5 +1,14 @@
 {# templates/_season_potential_calendar.html #}
 {% if potential_calendar %}
+
+{% macro format_value(value, precision=0, default_char='-') %}
+    {% if value is number and value != 0 %}
+        {{ ("%." ~ precision ~ "f")|format(value|float) }}
+    {% else %}
+        {{ default_char }}
+    {% endif %}
+{% endmacro %}
+
 <div class="card mt-0 shadow-sm">
     <div class="card-header bg-primary text-white">
         <i class="bi bi-calendar-event me-1"></i> Calendário de Potencial Máximo da Temporada ({{ config.SEASONAL_TOKEN_NAME }})
@@ -20,48 +29,11 @@
             {% endif %}
             e podem não coincidir exatamente com as datas reais do evento no jogo.
         </p>
-                {# --- SEÇÃO DE CONTROLES PARA SIMULAÇÃO CUSTOMIZADA --- #}
-        <div id="customBuffSimulatorControls" class="mb-4 p-3 border rounded bg-light shadow-sm">
-            <h6 class="text-primary"><i class="bi bi-sliders me-1"></i>Simulador de Impacto de Buffs</h6>
-            <p class="small text-muted mb-2">
-                Selecione os buffs que você possui ou planeja adquirir para recalcular o calendário abaixo.
-                A simulação ainda considera o VIP global ({{ "Ativo" if config.SIM_IDEAL_PLAYER_HAS_VIP else "Inativo" }}) e o bônus de 100% do Megaboard ({{ "Ativo" if config.SIM_IDEAL_PLAYER_ACHIEVES_MEGA_BOUNTY_BONUS else "Inativo" }}).
-            </p>
-            {# Layout dos checkboxes ajustado para melhor distribuição #}
-            <div id="buffSelectionCheckboxes" class="row g-2 mb-3">
-                {% set delivery_buffs = config.SEASONAL_DELIVERY_BUFFS or {} %}
-                {% for buff_name, buff_data in delivery_buffs.items() %}
-                    {% if buff_name != 'vip' %} {# VIP é global na simulação e não selecionável aqui #}
-                    <div class="col-12 col-sm-6 col-md-4 col-lg-3"> {# Define colunas por breakpoint #}
-                        <div class="form-check small">
-                            <input class="form-check-input custom-buff-checkbox" type="checkbox" value="{{ buff_name }}" id="buff_check_{{ buff_name|replace(' ', '_')|replace('"', '')|replace("'", "")|lower }}">
-                            <label class="form-check-label" for="buff_check_{{ buff_name|replace(' ', '_')|replace('"', '')|replace("'", "")|lower }}">
-                                {{ buff_name }}
-                                {% if buff_data.cost is defined and buff_data.currency %}
-                                    <span class="text-muted" style="font-size: 0.9em;">
-                                        ({{ buff_data.cost }}
-                                        {% if buff_data.currency == 'ticket' %}{{ config.SEASONAL_TOKEN_NAME | slice(0,1) | upper }}
-                                        {% elif buff_data.currency == 'sfl' %}F
-                                        {% else %}{{ buff_data.currency | slice(0,1) | upper }}{% endif %})
-                                    </span>
-                                {% endif %}
-                            </label>
-                        </div>
-                    </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-            <div class="d-flex flex-wrap gap-2"> {# Container para os botões #}
-                <button id="recalculateCustomCalendarBtn" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Recalcular com Seleção</button>
-                <button id="resetToIdealCalendarBtn" class="btn btn-outline-secondary btn-sm"><i class="bi bi-stars me-1"></i>Voltar à Simulação Ideal</button>
-            </div>
-            <div id="customCalendarStatus" class="mt-2 small"></div>
-        </div>
-
+       
         <div class="table-responsive" id="potentialCalendarTableContainer">
 
-            <table class="table table-sm table-hover table-bordered calendar-table" style="font-size: 0.78rem; min-width: 1200px;">
-                <thead class="table-dark sticky-top" style="z-index: 10;">
+            <table class="table table-sm table-hover table-bordered calendar-table potential-calendar-table">
+                <thead class="table-dark sticky-top calendar-sticky-header">
                     <tr>
                         <th scope="col" class="calendar-date-col">Data</th>
                         <th scope="col">Dia Sem.</th>
@@ -80,8 +52,8 @@
                             </th>
                         {% endfor %}
                         <th scope="col" class="bg-success text-white">Total Ganhos Dia</th>
-                        <th scope="col" class="calendar-purchases-col">Compras Virtuais</th>
-                        <th scope="col">Custo</th>
+                        <th scope="col" class="calendar-purchases-col">Minhas Compras (Manual)</th>
+                        <th scope="col">Custo Manual</th>
                         <th scope="col" class="bg-info text-white">Saldo Final</th>
                         <th scope="col" class="calendar-buffs-col">Buffs Ativos</th>
                     </tr>
@@ -89,24 +61,24 @@
                 <tbody>
                     {% for day_data in potential_calendar %}
                     <tr class="week-{{ 'even' if day_data.game_week_id % 2 == 0 else 'odd' }} {% if day_data.purchases_today %}highlight-purchase-day fw-bold{% endif %}">
-                        <td class="calendar-date-col">{{ day_data.date_display }}</td>
-                        <td>{{ day_data.day_of_week_str }}</td>
-                        <td>{{ day_data.day_in_season }}</td>
-                        <td>{{ "%.0f"|format(day_data.balance_start_day) }}</td>
-                        <td>{{ "%.0f"|format(day_data.gains_chest) if day_data.gains_chest > 0 else '-' }}</td>
+                        <td class="calendar-date-col" data-field="date_display">{{ day_data.date_display }}</td>
+                        <td data-field="day_of_week_str">{{ day_data.day_of_week_str }}</td>
+                        <td data-field="day_in_season">{{ day_data.day_in_season }}</td>
+                        <td data-field="balance_start_day">{{ format_value(day_data.balance_start_day) }}</td>
+                        <td data-field="gains_chest">{{ format_value(day_data.gains_chest) }}</td>
                         <td>
-                            {{ "%.0f"|format(day_data.gains_deliveries_base) if day_data.gains_deliveries_base > 0 else '-' }}
+                            {{ format_value(day_data.gains_deliveries_base) }}
                             {% if day_data.is_double_delivery_day %}
                                 <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill ms-1" title="Estimativa de Entregas em Dobro neste dia!">2x</span>
                             {% endif %}
                         </td>
-                        <td>{{ "%.0f"|format(day_data.gains_chores_base) if day_data.gains_chores_base > 0 else '-' }}</td>
-                        <td>{{ "%.0f"|format(day_data.gains_megaboard_base) if day_data.gains_megaboard_base > 0 else '-' }}</td>
-                        <td>{{ "%.0f"|format(day_data.gains_animals_base) if day_data.gains_animals_base > 0 else '-' }}</td>
-                        <td>{{ "%.0f"|format(day_data.gains_megaboard_completion_bonus) if day_data.gains_megaboard_completion_bonus > 0 else '-' }}</td>
+                        <td>{{ format_value(day_data.gains_chores_base) }}</td>
+                        <td>{{ format_value(day_data.gains_megaboard_base) }}</td>
+                        <td>{{ format_value(day_data.gains_animals_base) }}</td>
+                        <td>{{ format_value(day_data.gains_megaboard_completion_bonus) }}</td>
                         {% set vip_tooltip_parts = [] %}
-                        {% if day_data.gains_deliveries_vip_bonus %}{% set _ = vip_tooltip_parts.append("Entregas: +" + "%.0f"|format(day_data.gains_deliveries_vip_bonus|float)) %}{% endif %}
-                        {% if day_data.gains_chores_vip_bonus %}{% set _ = vip_tooltip_parts.append("Chores: +" + "%.0f"|format(day_data.gains_chores_vip_bonus|float)) %}{% endif %}
+                        {% if day_data.gains_deliveries_vip_bonus %}{% set _ = vip_tooltip_parts.append("Entregas: +" + format_value(day_data.gains_deliveries_vip_bonus, default_char='0')) %}{% endif %}
+                        {% if day_data.gains_chores_vip_bonus %}{% set _ = vip_tooltip_parts.append("Chores: +" + format_value(day_data.gains_chores_vip_bonus, default_char='0')) %}{% endif %}
                         <td {% if vip_tooltip_parts %}data-bs-toggle="tooltip" data-bs-placement="top" title="{{ vip_tooltip_parts|join('; ') }}"{% endif %}>
                             {{ "%.0f"|format(day_data.gains_vip_total_bonus) if day_data.gains_vip_total_bonus > 0 else '-' }}
                         </td>
@@ -114,39 +86,41 @@
                             {% set total_bonus_for_item_today = day_data.item_specific_bonus_totals.get(buff_item_name, 0) %}
                             {% set item_bonus_details_today = day_data.gains_item_bonuses_detailed.get(buff_item_name, {}) %}
                             {% set tooltip_title_parts = [] %}
-                            {% if item_bonus_details_today.deliveries %}{% set _ = tooltip_title_parts.append("Entregas: +" + "%.0f"|format(item_bonus_details_today.deliveries|float)) %}{% endif %}
-                            {% if item_bonus_details_today.chores %}{% set _ = tooltip_title_parts.append("Chores: +" + "%.0f"|format(item_bonus_details_today.chores|float)) %}{% endif %}
-                            {% if item_bonus_details_today.megaboard_bounties %}{% set _ = tooltip_title_parts.append("B.Mega: +" + "%.0f"|format(item_bonus_details_today.megaboard_bounties|float)) %}{% endif %}
-                            {% if item_bonus_details_today.animal_bounties %}{% set _ = tooltip_title_parts.append("B.Anim: +" + "%.0f"|format(item_bonus_details_today.animal_bounties|float)) %}{% endif %}
+                            {% if item_bonus_details_today.deliveries %}{% set _ = tooltip_title_parts.append("Entregas: +" + format_value(item_bonus_details_today.deliveries, default_char='0')) %}{% endif %}
+                            {% if item_bonus_details_today.chores %}{% set _ = tooltip_title_parts.append("Chores: +" + format_value(item_bonus_details_today.chores, default_char='0')) %}{% endif %}
+                            {% if item_bonus_details_today.megaboard_bounties %}{% set _ = tooltip_title_parts.append("B.Mega: +" + format_value(item_bonus_details_today.megaboard_bounties, default_char='0')) %}{% endif %}
+                            {% if item_bonus_details_today.animal_bounties %}{% set _ = tooltip_title_parts.append("B.Anim: +" + format_value(item_bonus_details_today.animal_bounties, default_char='0')) %}{% endif %}
                             <td {% if tooltip_title_parts %}data-bs-toggle="tooltip" data-bs-placement="top" title="{{ tooltip_title_parts|join('; ') }}"{% endif %}>
-                                {{ "%.0f"|format(total_bonus_for_item_today) if total_bonus_for_item_today > 0 else '-' }}
+                                {{ format_value(total_bonus_for_item_today) }}
                             </td>
                         {% endfor %}
-                        <td class="fw-bold">{{ "%.0f"|format(day_data.total_gains_today) }}</td>
+                        <td class="fw-bold" data-field="total_gains_today">{{ format_value(day_data.total_gains_today) }}</td>
                         <td class="calendar-purchases-col">
-                            {% for purchase in day_data.purchases_today %}
-                                <span class="badge 
-                                    {% if purchase.type == 'buff_item_sfl' %}bg-success-subtle text-success-emphasis border border-success-subtle {# Nova cor para item SFL #}
-                                    {% elif purchase.type == 'buff_item_token' %}bg-info-subtle text-info-emphasis border border-info-subtle
-                                    {% elif 'unlock' in purchase.type %}bg-warning-subtle text-warning-emphasis border border-warning-subtle
-                                    {% else %}bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle{% endif %} me-1 rounded-pill d-block mb-1">
-                                    {{ purchase.name }}
-                                </span>
-                            {% endfor %}
+                            <div class="manual-purchases-display" data-field="manual_purchases_display">
+                                {# Itens comprados manualmente serão listados aqui pelo JS #}
+                            </div>
+                            <button class="btn btn-xs btn-outline-success mt-1 open-manual-purchase-modal"
+                                    data-day-index="{{ loop.index0 }}"
+                                    data-date-display="{{ day_data.date_display }}"
+                                    title="Registrar compra manual de item neste dia">
+                                <i class="bi bi-plus-circle-dotted"></i> Add
+                            </button>
                         </td>
-                        {# MODIFICAÇÃO AQUI para exibir "(SFL)" na coluna Custo #}
-                        <td>
-                            {% for purchase in day_data.purchases_today %}
-                                <span class="text-danger d-block mb-1">
-                                    (-{{ "%.0f"|format(purchase.cost) }}
-                                    {% if purchase.type == 'buff_item_sfl' %}
-                                        <span class="currency-sfl" style="font-size: 0.8em;">Flower</span>
-                                    {% endif %})
-                                </span>
-                            {% endfor %}
+                        <td data-field="manual_cost_display" class="text-danger">
+                            {# Custo das compras manuais será mostrado aqui pelo JS #}
                         </td>
-                        <td class="fw-bold">{{ "%.0f"|format(day_data.balance_end_day) }}</td>
-                        <td class="calendar-buffs-col small">{{ day_data.active_buffs_str | replace(",", ",\n") if day_data.active_buffs_str else '-' }}</td>
+                        <td class="fw-bold" data-field="balance_end_day">{{ format_value(day_data.balance_end_day) }}</td>
+                        <td class="calendar-buffs-col small" data-field="active_buffs_list">
+                            {% if day_data.active_buffs_list and day_data.active_buffs_list is iterable and day_data.active_buffs_list is not string %}
+                                {% for buff_name in day_data.active_buffs_list %}
+                                    <span class="badge bg-secondary fw-normal me-1 mb-1 d-inline-block">{{ buff_name }}</span>
+                                {% endfor %}
+                            {% elif day_data.active_buffs_str %} {# Fallback para o formato string antigo #}
+                                {{ day_data.active_buffs_str | replace(",", ",\n") }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>                    
                     </tr>
                     {% endfor %}
                 </tbody>

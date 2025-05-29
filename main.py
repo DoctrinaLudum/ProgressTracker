@@ -14,7 +14,7 @@ from bumpkin_utils import gerar_url_imagem_bumpkin, load_item_ids
 from sunflower_api import get_farm_data_full
 
 # --- Configuração do Logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(module)s.%(funcName)s:%(lineno)d - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(module)s.%(funcName)s:%(lineno)d - %(message)s')
 log = logging.getLogger(__name__)
 
 # --- Inicialização do App Flask ---
@@ -145,6 +145,29 @@ def index():
         context["avg_daily_rate_status"] = 'aguardando_dados'
     elif not context.get("farm_id_submitted"):
         context["avg_daily_rate_status"] = 'nao_calculado_ainda'
+
+    # --- Preparar shop_items_for_calendar_purchase ---
+    # Esta lista conterá itens da loja que custam o token sazonal,
+    # para serem usados na funcionalidade de compra manual do calendário.
+    shop_items_for_calendar_purchase = []
+    if GLOBAL_SHOP_ITEMS and config.SEASONAL_TOKEN_NAME:
+        for item_name, item_data in GLOBAL_SHOP_ITEMS.items():
+            # Considerar apenas itens que custam o token sazonal
+            if item_data.get("currency") == config.SEASONAL_TOKEN_NAME:
+                buff_id = None
+                # Tentar encontrar o buff_id correspondente se o item for um buff
+                if hasattr(config, 'SEASONAL_DELIVERY_BUFFS') and isinstance(config.SEASONAL_DELIVERY_BUFFS, dict):
+                    for buff_key, buff_info in config.SEASONAL_DELIVERY_BUFFS.items():
+                        if isinstance(buff_info, dict) and buff_info.get("shop_item_name") == item_name:
+                            buff_id = buff_key
+                            break
+                shop_items_for_calendar_purchase.append({
+                    "name": item_name,
+                    "cost": item_data.get("cost"),
+                    "currency": item_data.get("currency"), # Deve ser config.SEASONAL_TOKEN_NAME
+                    "buff_id": buff_id
+                })
+    context["shop_items_for_calendar_purchase"] = shop_items_for_calendar_purchase
 
     # --- Logs Resumidos ---
     log.info(f"Renderizando para Farm ID: {context.get('farm_id_submitted', 'Nenhum')}. Taxa: {context.get('avg_daily_rate', TAXA_MEDIA_DIARIA_PLACEHOLDER):.1f} ({context.get('avg_daily_rate_status', 'N/A')})")

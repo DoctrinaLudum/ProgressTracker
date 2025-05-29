@@ -2,31 +2,49 @@
    1. LAYOUT GERAL
    ========================================================================== */
 
-   body {
+body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    /* background-color: #ffffff; /* Cor de fundo geral da página, se desejar */
+    /* background-color: #ffffff; */
 }
 
 main.container {
-    flex: 1; /* Faz o conteúdo principal (main) ocupar o espaço restante */
+    flex: 1;
+    padding-top: 0.5rem;
+    padding-bottom: 1.5rem;
 }
+
+h2.text-success {
+    margin-bottom: 0.8rem !important;
+}
+
+p.lead.text-muted {
+    margin-bottom: 1.2rem !important;
+}
+
+h3.text-success {
+    margin-bottom: 1rem !important;
+}
+
+.card-title { 
+    margin-bottom: 0.5rem; 
+}
+
 
 /* ==========================================================================
   2. CABEÇALHO (Header)
   ========================================================================== */
 
 .app-header {
-    background-color: #f8f9fa; /* Cor de fundo (Bootstrap 'light') */
+    background-color: #f8f9fa;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
 }
 
-.app-header a.text-success {
-    text-decoration: none;
-}
-.app-header a.text-success:hover {
-    opacity: 0.9;
-    text-decoration: none;
+.app-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0 !important;
 }
 
 /* ==========================================================================
@@ -139,161 +157,172 @@ main.container {
 }
 
 /* ==========================================================================
-  8. ESTILOS DA ABA BOUNTIES (Estilo Loja)
+  8. ESTILOS PARA CARDS DE ATIVIDADES (Bounties, Chores, Deliveries)
   ========================================================================== */
 
-/* Container Grid para os cards de bounties */
-.bounties-grid {
-    display: grid;
-    /* Ajuste minmax para largura mínima desejada antes de quebrar linha */
-    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); /* Ex: min 90px */
-    gap: 0.8rem;
-    padding: 0.5rem 0;
-    justify-content: center; /* Centraliza o grid todo se ele não ocupar a largura total */
-}
-
-/* Estilo Individual do Card de Bounty */
-.bounty-card {
+.activity-card {
     background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef; /* Borda mais clara */
+    border-radius: 0.3rem;    /* Raio de borda um pouco menor */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* Sombra mais sutil */
     display: flex;
     flex-direction: column;
-    height: 120px;  /* <<< ALTURA FIXA DO CARD (Ajuste conforme necessário) */
-    transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out; /* Adiciona transform à transição para suavidade */
-    width: 100%;    /* Ocupa a largura da coluna do grid */
-    overflow: hidden; /* Esconde conteúdo que transbordar */
+    height: 100%; 
+    transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out; /* Transição mais rápida */
+    width: 100%;
+    /* overflow: hidden; /* Removido para evitar cortar sombras ou tooltips que transbordem */
 }
 
-.bounty-card:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transform: translateY(-3px); /* Adiciona um leve "levantamento" no hover */
+.activity-card:hover {
+    box-shadow: 0 0.2rem 0.4rem rgba(0,0,0,0.08);
+    transform: translateY(-1px); /* Elevação mais sutil */
 }
 
-/* Corpo do Card de Bounty (para controlar padding e conteúdo flex) */
-.bounty-card .card-body {
-   padding: 0.5rem; /* Padding interno */
+.activity-card .card-header {
+    padding: 0.4rem 0.6rem; /* Padding MENOR no header */
+    font-size: 0.85rem;   /* Fonte MENOR no header */
+    font-weight: 500;     
+    border-bottom: 1px solid #f0f0f0; /* Linha separadora bem sutil */
+    /* background-color: #f8f9fa; /* Fundo sutil para o header, se desejado */
+}
+.activity-card .card-header .badge {
+    font-size: 0.65em; /* Badge MENOR */
+    padding: 0.25em 0.4em;
+}
+.activity-card .card-header h5.activity-title {
+     font-size: 1em; 
+     margin-bottom: 0;
+     font-weight: 600; /* Nome do NPC/Chore/Entrega um pouco mais forte */
+}
+
+.activity-card .card-body {
+   padding: 0.6rem; /* Padding MENOR no corpo */
    display: flex;
    flex-direction: column;
-   align-items: center; /* Centraliza itens horizontalmente */
-   justify-content: center; /* Tenta centralizar conteúdo verticalmente */
-   flex-grow: 1; /* Ocupa o espaço vertical disponível dentro do card */
-   overflow: hidden; /* Esconde overflow dentro do body também */
+   flex-grow: 1;
 }
 
-/* Imagem do Requisito - AGORA COM TAMANHO FIXO */
-.bounty-req-image {
-    width: 40px;         /* <<< LARGURA FIXA DA IMAGEM (Ajuste se desejar) */
-    height: 40px;        /* <<< ALTURA FIXA DA IMAGEM (Ajuste se desejar) */
-    object-fit: contain;   /* Preenche o espaço, mantendo proporção e cortando excesso */
-    display: block;      /* Mantém como bloco */
-    margin-left: auto;   /* Centraliza horizontalmente */
-    margin-right: auto;
-    margin-bottom: 0.5rem; /* Espaço abaixo */
-    background-color: #f8f9fa; /* Fundo para imagens transparentes/não carregadas */
-    border-radius: 4px;       /* Cantos arredondados */
-    flex-shrink: 0; /* Impede que encolha em contextos flex */
+.activity-card .activity-icon-col { 
+    flex: 0 0 40px; /* Largura MENOR para coluna de ícone/imagem do NPC */
+    padding-right: 0.6rem; /* Espaço MENOR */
+    /* ... (restante dos estilos de align/justify) ... */
+}
+.activity-card .activity-icon-col img {
+    max-height: 40px; /* Imagem MENOR */
+    /* ... (restante dos estilos da imagem) ... */
+}
+.activity-card .activity-icon-col .bi { 
+    font-size: 1.8rem; /* Ícone placeholder MENOR */
 }
 
-/* Título do Card (usando .bounty-req-name do seu HTML) */
-.bounty-card .bounty-req-name {
-    font-size: 0.8rem;   /* Tamanho da fonte */
-    font-weight: 600;    /* Peso da fonte */
-    color: #333;        /* Cor do texto */
-    margin-top: 0;       /* Sem margem superior */
-    margin-bottom: 0.25rem; /* Pequena margem inferior */
-    width: 100%;         /* Ocupa largura total para centralizar */
-    text-align: center;
-    line-height: 1.2;    /* Altura da linha */
-    /* Tratamento de texto longo (reticências em 2 linhas) */
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2; /* Limita a 2 linhas */
-    line-clamp: 2; /* Propriedade padrão para compatibilidade futura */
-    -webkit-box-orient: vertical;
-    text-overflow: ellipsis;
-    min-height: calc(2 * 1.2em); /* Garante espaço vertical para 2 linhas */
-    flex-shrink: 0; /* Impede que encolha */
-}
-
-/* Parágrafo da Recompensa */
-.bounty-reward {
-    font-size: 0.75rem; /* Fonte um pouco menor */
-    color: #e67e22;     /* Laranja */
+.activity-card .activity-title { 
+    font-size: 0.9rem; /* Harmonizar com header ou ser um pouco maior se no body */
     font-weight: 600;
-    margin-top: auto;    /* Empurra para a parte inferior */
-    margin-bottom: 0;    /* Sem margem inferior */
-    width: 100%;         /* Ocupa largura total para centralizar */
-    text-align: center;
-    /* Tratamento texto longo (1 linha com reticências) */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex-shrink: 0; /* Impede que encolha */
+    margin-bottom: 0.15rem; /* Margem MENOR */
+    line-height: 1.2;
+}
+.activity-card .activity-description { 
+    font-size: 0.75rem; /* Descrição MENOR */
+    color: #6c757d;
+    margin-bottom: 0.25rem; 
+    line-height: 1.25;
 }
 
-/* Descrição do Card (se você adicionar uma) - Mantido */
-.bounty-description {
-    font-size: 0.9rem;
-    color: #7f8c8d;
-    margin-bottom: 1rem;
-    flex-grow: 1; /* Ocupa espaço vertical (se houver) */
-    line-height: 1.4;
-    overflow: hidden; /* Esconde se for muito longa */
+.activity-card .activity-requirements strong,
+.activity-card .activity-reward strong { /* Labels "Requer:" "Recompensa:" */
+    font-size: 0.75rem; 
+    margin-bottom: 0.1rem;
+}
+.activity-card .activity-requirements ul,
+.activity-card .activity-reward p,
+.activity-card .activity-reward div { 
+    font-size: 0.75rem; /* Itens/valores MENORES */
+    margin-bottom: 0.1rem !important; 
+    line-height: 1.2;
+}
+.activity-card .activity-requirements ul li {
+    padding: 0; /* Sem padding extra nos itens da lista */
 }
 
-/* Detalhes (Status - se você adicionar) - Mantido e com tratamento de overflow */
-.bounty-details {
-    font-size: 0.8rem;
-    color: #95a5a6;
-    margin-top: auto; /* Empurra para baixo */
-    margin-bottom: 0.5rem;
-    width: 100%; /* Para text-align center */
-    text-align: center;
-    white-space: nowrap; /* Impede quebra de linha */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex-shrink: 0; /* Impede que encolha */
+.activity-card .activity-reward .reward-line {
+    margin-bottom: 0.1rem !important; /* Margem mínima */
+}
+.activity-card .activity-reward .reward-line .bi,
+.activity-card .activity-reward .reward-line img { /* Aplicar a img também */
+    margin-right: 0.2rem;
+    font-size: 0.9em; /* Ícone/imagem da recompensa menor */
+    width: 14px; /* Para imagens de token */
+    height: 14px;
 }
 
-/* Estilos específicos para Status (mantidos como antes) */
-.status-active, .status-available {
-    color: #2ecc71; /* Verde */
-    font-weight: bold;
-}
-.status-progress, .status-pending {
-    color: #f39c12; /* Amarelo/Laranja */
-    font-weight: bold;
-}
-.status-completed {
-    color: #95a5a6; /* Cinza */
-    font-weight: bold;
+.activity-card .alert.small { 
+    font-size: 0.7rem !important;
+    padding: 0.25rem 0.4rem !important;
+    margin-top: 0.25rem !important;
+    margin-bottom: 0.1rem !important;
 }
 
-/* Ações (Botões - se você adicionar) - Mantido */
-.bounty-actions {
-    padding-top: 0.5rem;
-    border-top: 1px solid #f0f0f0; /* Linha separadora opcional */
-    display: flex;
-    gap: 0.5rem;
-    justify-content: center; /* Centraliza botões */
-    margin-top: auto; /* Garante que fique na base */
-    flex-shrink: 0; /* Impede que encolha */
+.activity-card .historical-data-footer {
+    font-size: 0.7rem; /* Footer bem pequeno */
+    padding: 0.4rem 0.6rem; 
+    margin: 0.5rem -0.6rem -0.6rem; /* Compensa padding do card-body */
+    /* ... (restante dos estilos do footer) ... */
+}
+.activity-card .historical-data-footer p {
+    margin-bottom: 0 !important; /* Sem margem no footer */
+    line-height: 1.1;
 }
 
-/* --- FIM DOS ESTILOS DA ABA BOUNTIES --- */
+
+/* --- Estilos Específicos para Bounties --- */
+.bounties-grid {
+    /* Se quiser mais bounties por linha, diminua o minmax aqui: */
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); /* Ex: 80px min */
+    gap: 0.6rem; /* Gap menor */
+}
+.bounty-card { 
+    /* Se quiser que as bounties sejam menos altas: */
+    height: 110px; /* Altura MENOR */
+    border-radius: 6px; /* Raio de borda menor */
+    /* ... (demais estilos de bounty-card) ... */
+}
+
+.bounty-req-image { 
+    width: 32px; /* Imagem MENOR */
+    height: 32px;
+    margin-bottom: 0.3rem; 
+}
+.bounty-card .bounty-req-name { 
+    font-size: 0.7rem; /* Nome MENOR */
+    font-weight: 500;   
+    color: #343a40;     
+    margin-bottom: 0.15rem; 
+    line-height: 1.15;
+    min-height: calc(2 * 1.15em); 
+}
+.bounty-reward { 
+    font-size: 0.65rem; 
+    font-weight: 600; 
+}
+.bounty-reward .bi,
+.bounty-reward img { /* Aplicar a img também */
+    vertical-align: baseline; /* Tentar alinhar melhor */
+    font-size: 0.9em; /* Ícone/imagem da recompensa menor */
+    width: 12px; /* Para imagens de token */
+    height: 12px;
+    margin-right: 0.15rem;
+}
+
 
 /* ==========================================================================
    9. ESTILOS DA ABA CALENDARIO (Potential Season Calendar)
    ========================================================================== */
-
+/* ... (seus estilos de calendário permanecem os mesmos) ... */
 .calendar-table th,
 .calendar-table td {
     text-align: center; 
     vertical-align: middle; 
 }
-
 .calendar-table .calendar-date-col {
     white-space: nowrap; 
     text-align: left; 
@@ -302,7 +331,6 @@ main.container {
 .calendar-table th.calendar-date-col { 
     text-align: left;
 }
-
 .calendar-table .calendar-purchases-col .badge {
     display: block; 
     margin-bottom: 0.25rem; 
@@ -311,7 +339,6 @@ main.container {
 .calendar-table .calendar-purchases-col .badge:last-child {
     margin-bottom: 0; 
 }
-
 .calendar-table td:has(span.text-danger.d-block) { 
     padding-top: 0.25rem; 
     padding-bottom: 0.25rem;
@@ -322,160 +349,308 @@ main.container {
 .calendar-table td span.text-danger.d-block:last-child {
      margin-bottom: 0;
 }
-
 #potential-calendar-tab-pane .table-bordered th,
 #potential-calendar-tab-pane .table-bordered td {
     border-color: #dee2e6; 
 }
-
 #potential-calendar-tab-pane .table thead.table-dark th {
     background-color: #212529; 
     border-color: #32383e; 
 }
-
 #potential-calendar-tab-pane .badge { 
     font-size: 0.7rem;    
     padding: 0.3em 0.55em; 
     font-weight: 500;     
 }
-
 #potential-calendar-tab-pane [data-bs-toggle="tooltip"] {
     cursor: help;
 }
-
 .calendar-table .calendar-buffs-col {
     min-width: 130px; 
     white-space: pre-wrap; 
     text-align: left; 
 }
-
-/* === NOVAS REGRAS PARA CORES ALTERNADAS DA SEMANA === */
 .calendar-table tr.week-even td {
-    background-color: #d7f7de; /* Cinza bem claro (Bootstrap 'light') para semanas pares */
+    background-color: #d7f7de;
 }
 .calendar-table tr.week-odd td {
-    background-color: #ffffff; /* Branco para semanas ímpares */
+    background-color: #ffffff;
 }
-
-/* Opcional: Se você quiser que o hover do Bootstrap ainda funcione bem sobre essas cores */
 .calendar-table tr.week-even:hover td,
 .calendar-table tr.week-odd:hover td {
-    background-color: #e9ecef; /* Cor de hover padrão do Bootstrap 'table-hover' ou uma de sua escolha */
+    background-color: #e9ecef; 
 }
-
-/* Opcional: Se você tiver a classe 'table-striped' na sua <table> e quiser que ela
-   seja sobrescrita pelas cores da semana, estas regras já devem fazer isso devido à especificidade.
-   Se quiser remover completamente o efeito do table-striped para esta tabela específica,
-   remova a classe 'table-striped' da tag <table> no _season_potential_calendar.html */
-
-/* Ajuste para o destaque de dias com compras, caso a cor da semana o esconda */
-/*.calendar-table tr.highlight-purchase-day td {
-    /* Se a cor da semana for muito parecida com a table-light, 
-       você pode precisar de um destaque mais forte aqui, por exemplo: */
-    /* border-left: 3px solid #fd7e14; /* Uma borda laranja à esquerda */
-    /* ou um fundo sutilmente diferente que se destaque da cor da semana */
-    /* background-color: #fff3cd !important; /* Exemplo: Amarelo bem claro Bootstrap 'warning-subtle' */
-
-    /* No entanto, a classe table-light aplicada na <tr> já deve ser suficiente.
-       Se a cor de fundo de week-even/week-odd for mais forte, pode precisar do !important.
-       Vamos manter a classe 'table-light fw-bold' na <tr> como está no HTML,
-       e o CSS acima para week-even/odd vai definir o fundo base da linha.
-       A classe table-light do bootstrap usa #fcfcfd, que é quase branco.
-       Poderíamos definir um estilo mais explícito para highlight-purchase-day se necessário.
-    */
-
 .calendar-table tr.highlight-purchase-day.week-even td {
-    background-color: #eef3f5; /* Um tom um pouco diferente para compra em semana par */
+    background-color: #eef3f5; 
 }
 .calendar-table tr.highlight-purchase-day.week-odd td {
-    background-color: #f0f8ff; /* AliceBlue, um tom diferente para compra em semana ímpar */
+    background-color: #f0f8ff; 
 }
 
 /* ==========================================================================
-   (Nova Seção ou Adicionar à Seção de Abas Existente)
    10. ESTILOS DE SUB-ABAS
    ========================================================================== */
-
-/* Estilo geral para a barra de navegação das sub-abas */
+/* ... (seus estilos de sub-abas permanecem os mesmos) ... */
 #token-sources-main-tab-pane .nav-pills {
-    background-color: #f8f9fa; /* Um fundo cinza claro para a barra de sub-abas */
+    background-color: #f8f9fa; 
     padding: 0.5rem;
     border-radius: 0.25rem;
-    margin-bottom: 1rem !important; /* Garante a margem inferior */
+    margin-bottom: 1rem !important; 
 }
-
-/* Estilo para os links (botões) das sub-abas */
 #token-sources-main-tab-pane .nav-pills .nav-link {
-    color: #495057; /* Cor de texto mais escura para links não ativos */
+    color: #495057; 
     background-color: transparent;
-    border: 1px solid transparent; /* Para manter o layout consistente com o ativo */
+    border: 1px solid transparent; 
     margin-right: 0.25rem;
-    padding: 0.5rem 0.8rem; /* Ajuste o padding se necessário */
-    font-size: 0.9em; /* Ligeiramente menor que as abas principais */
+    padding: 0.5rem 0.8rem; 
+    font-size: 0.9em; 
 }
-
-/* Estilo para a sub-aba ATIVA */
 #token-sources-main-tab-pane .nav-pills .nav-link.active {
-    color: #fff; /* Texto branco */
-    background-color: #7fb1fcc5; /* Azul primário do Bootstrap (mesma cor da aba principal ativa) */
-    /* OU uma cor secundária: */
-    /* background-color: #5bc0de; */ /* Exemplo: um azul mais claro (Bootstrap 'info') */
-    /* background-color: #6c757d; */ /* Exemplo: um cinza (Bootstrap 'secondary') */
-    border-color: #0d6efd; /* Borda da mesma cor do fundo */
+    color: #fff; 
+    background-color: #7fb1fcc5; 
+    border-color: #0d6efd; 
 }
-
-/* Estilo para o hover nas sub-abas não ativas */
 #token-sources-main-tab-pane .nav-pills .nav-link:not(.active):hover {
-    background-color: #e9ecef; /* Cinza claro para hover */
+    background-color: #e9ecef; 
     border-color: #dee2e6;
 }
-
-/* Estilo para o conteúdo do painel das sub-abas */
 #token-sources-main-tab-pane .tab-content {
-    padding-top: 1rem; /* Espaço entre as sub-abas e o conteúdo delas */
+    padding-top: 1rem; 
 }
-
-/* Estilo para a ABA PRINCIPAL ATIVA */
 #analysisTabs .nav-link.active {
-    color: #fff; /* Texto branco */
-    background-color: #0d6efd; /* Azul primário do Bootstrap */
-    border-color: #0d6efd #0d6efd #fff; /* Ajusta as bordas para o efeito de aba "levantada" */
+    color: #fff; 
+    background-color: #0d6efd; 
+    border-color: #0d6efd #0d6efd #fff; 
 }
-
-/* Garante que os links das abas principais não ativos tenham a cor padrão */
 #analysisTabs .nav-link {
-    color: #0d6efd; /* Cor de link azul padrão do Bootstrap */
+    color: #0d6efd; 
 }
-
 #analysisTabs .nav-link:not(.active):hover {
-    border-color: #e9ecef #e9ecef #dee2e6; /* Cor de borda padrão do Bootstrap para hover */
-    isolation: isolate; /* Necessário para o z-index funcionar corretamente com a borda da aba ativa */
+    border-color: #e9ecef #e9ecef #dee2e6; 
+    isolation: isolate; 
 }
 
 /* ==========================================================================
    11. ESTILOS BOTÃO VOLTAR AO TOPO
    ========================================================================== */
-
+/* ... (seus estilos do botão voltar ao topo permanecem os mesmos) ... */
 #scrollTopBtn {
-    display: none; /* Começa escondido. O JavaScript controlará a visibilidade (mudando para 'flex'). */
+    display: none; 
     position: fixed;
-    bottom: 30px; /* Distância da parte inferior */
-    right: 30px;  /* Distância da direita */
-    z-index: 9999; /* Garante que fique sobre a maioria dos outros elementos */
+    bottom: 30px; 
+    right: 30px;  
+    z-index: 9999; 
     border: none;
     outline: none;
-    background-color: rgba(13, 110, 253, 0.65); /* Cor primária do Bootstrap com 65% de opacidade */
-    color: white; /* Cor do ícone */
+    background-color: rgba(13, 110, 253, 0.65); 
+    color: white; 
     cursor: pointer;
-    width: 50px;   /* Largura do botão */
-    height: 50px;  /* Altura do botão (igual à largura para ser um círculo) */
-    border-radius: 50%; /* Torna o botão circular */
-    font-size: 24px;    /* Tamanho do ícone dentro do botão */
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); /* Sombra suave */
-    transition: background-color 0.3s ease; /* Transição suave para a cor de fundo */
-    align-items: center;     /* Centraliza o ícone verticalmente (requer display: flex) */
-    justify-content: center; /* Centraliza o ícone horizontalmente (requer display: flex) */
+    width: 50px;   
+    height: 50px;  
+    border-radius: 50%; 
+    font-size: 24px;    
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); 
+    transition: background-color 0.3s ease; 
+    align-items: center;     
+    justify-content: center; 
 }
 #scrollTopBtn:hover {
-    background-color: #0d6efd; /* Cor primária do Bootstrap, sólida (100% opacidade) */
+    background-color: #0d6efd; 
+}
+
+/* ==========================================================================
+   12. ESTILOS PARA CARD DE IDENTIFICAÇÃO E STATS (ATUALIZADO)
+   ========================================================================== */
+/* ... (os estilos do card de identificação que ajustamos permanecem aqui) ... */
+.farm-identification-card .card-body {
+    padding: 0.75rem; 
+}
+.farm-identification-card .farm-name {
+    font-size: 1.25rem; 
+    font-weight: 600;
+    margin-bottom: 0; 
+    display: block; 
+}
+.farm-identification-card .farm-name .bi {
+    font-size: 1.05rem; 
+    vertical-align: baseline; 
+    margin-right: 0.2rem;
+}
+.farm-identification-card .farm-details-line { 
+    margin-bottom: 0.35rem; 
+}
+.farm-identification-card .farm-details-line small {
+    font-size: 0.78em; 
+    line-height: 1.1; 
+}
+.farm-identification-card .farm-details-line .badge {
+    font-size: 0.72em; 
+    padding: 0.15em 0.35em; 
+    vertical-align: middle;
+}
+.farm-identification-card .farm-details-line i.bi {
+    color: #6c757d;
+    font-size: 0.85em; 
+    vertical-align: middle;
+}
+.farm-identification-card .resource-row {
+    margin-top: 0.1rem;  
+    margin-bottom: 0.1rem; 
+    line-height: 1.2; 
+}
+.farm-identification-card .resource-item {
+    font-size: 0.88em; 
+    padding-top: 0;    
+    padding-bottom: 0; 
+    padding-left: 0.2rem;  
+    padding-right: 0.2rem;
+    display: flex;
+    align-items: center; 
+    white-space: nowrap; 
+    margin-bottom: 0.1rem; 
+}
+.farm-identification-card .resource-item i.bi {
+    margin-right: 0.25rem; 
+    font-size: 0.95em; 
+    vertical-align: middle; 
+}
+.farm-identification-card .resource-item strong {
+    font-weight: 500; 
+}
+.farm-identification-card .faction-details-line {
+    margin-top: 0.25rem; 
+}
+.farm-identification-card .faction-details-line small {
+    font-size: 0.82em; 
+    line-height: 1.2; 
+}
+.farm-identification-card .faction-details-line i.bi {
+    color: #6c757d; 
+    font-size: 0.9em; 
+    vertical-align: middle;
+    margin-right: 0.2rem;
+}
+.farm-identification-card .faction-details-line strong {
+    color: #343a40; 
+    font-weight: 500;
+}
+.farm-identification-card .bumpkin-image {
+    max-width: 90px; 
+    height: auto;
+    border-radius: 6px; 
+    border: 1px solid #dee2e6; 
+    background-color: #f8f9fa; 
+}
+.farm-identification-card .bumpkin-placeholder {
+    width: 90px; 
+    height: 90px; 
+    background-color: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.farm-identification-card .bumpkin-placeholder .bi {
+    font-size: 2.5rem; 
+    color: #adb5bd;
+}
+.farm-identification-card p { 
+    margin-bottom: 0.15rem !important; 
+}
+.farm-identification-card h4 { 
+    margin-bottom: 0 !important; 
+}
+
+@media (max-width: 767.98px) { 
+    .farm-identification-card .bumpkin-image,
+    .farm-identification-card .bumpkin-placeholder {
+        margin-top: 0.3rem; 
+        max-width: 80px; 
+    }
+     .farm-identification-card .bumpkin-placeholder {
+        width: 80px; 
+        height: 80px; 
+    }
+    .farm-identification-card .bumpkin-placeholder .bi {
+        font-size: 2rem; 
+    }
+    .farm-identification-card .resource-item {
+        font-size: 0.78em; 
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-bottom: 0.05rem;
+    }
+    .farm-identification-card .farm-name {
+        font-size: 1.15rem; 
+    }
+    .farm-identification-card .farm-details-line small,
+    .farm-identification-card .faction-details-line small {
+        font-size: 0.75em; 
+    }
+}
+
+/* ==========================================================================
+   13. ESTILOS PARA CARDS DE ENTREGAS (SUB-ABA "FONTES DE TOKENS") - (JÁ FORNECIDO ANTERIORMENTE)
+   ========================================================================== */
+.delivery-npc-card .card-header .badge { /* Se você adicionar a classe delivery-npc-card ao card de entrega */
+    font-size: 0.7em; 
+    vertical-align: middle;
+}
+
+.delivery-npc-card .card-body strong[style*="font-size: 0.9rem"] { 
+    color: #343a40; 
+    font-weight: 500;
+    display: block;
+    margin-bottom: 0.2rem;
+}
+
+.delivery-npc-card .card-body ul.list-unstyled li {
+    font-size: 0.8rem;
+    color: #495057;
+    padding: 0.1rem 0;
+}
+.delivery-npc-card .card-body ul.list-unstyled li .fw-normal { 
+    color: #212529;
+}
+
+.delivery-npc-card .reward-line { 
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem !important;
+}
+.delivery-npc-card .reward-line strong { 
+    font-weight: 600;
+}
+.delivery-npc-card .reward-line .bi { 
+    font-size: 1em; 
+    margin-right: 0.25rem;
+}
+.delivery-npc-card .reward-line .text-muted { 
+    font-size: 0.9em !important; 
+    margin-left: 0.3rem;
+}
+
+.delivery-npc-card .alert-warning.small { 
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.6rem !important;
+    margin-top: 0.4rem !important;
+    margin-bottom: 0.2rem !important;
+}
+.delivery-npc-card .alert-warning.small .bi {
+    vertical-align: text-bottom;
+}
+
+.delivery-npc-card .historical-data-footer { 
+    font-size: 0.78rem;
+    color: #6c757d;
+    padding: 0.6rem 0.85rem 0.5rem; /* Ajustado para corresponder ao padding do .activity-card .card-header */
+    margin: 0.75rem -0.85rem -0.85rem; /* Ajustado para compensar padding do .activity-card .card-body */
+    background-color: #f8f9fa; 
+    border-top: 1px solid #e9ecef;
+    border-bottom-left-radius: calc(0.375rem - 1px); 
+    border-bottom-right-radius: calc(0.375rem - 1px);
+}
+.delivery-npc-card .historical-data-footer p {
+    margin-bottom: 0.05rem !important; 
+    line-height: 1.2;
 }

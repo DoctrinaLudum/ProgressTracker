@@ -1,76 +1,75 @@
 {# templates/_chores_content.html #}
 
-{% if farm_id_submitted %} {# Garante que só tentamos renderizar após uma busca #}
+{% if farm_id_submitted %}
 
     {# --- Seção de Exibição dos Chores Atuais (painel de afazeres) --- #}
     <h4 class="text-success mb-3 mt-2"><i class="bi bi-check2-square me-2"></i>Painel de Afazeres (Chores)</h4>
     {% if chores_data is defined and chores_data %}
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <div class="bounties-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
-                    {% for chore in chores_data %}
-                        {# ... (código do card individual do chore - como na sua última versão, que estava funcionando) ... #}
-                        <div class="card h-100 chore-card {% if chore.is_completed_api %}border-success bg-success-subtle{% else %}border-primary{% endif %}">
-                            <div class="row g-0 h-100">
-                                <div class="col-4">
+        <div class="row g-3"> {# Usando row g-3 para layout dos cards de chores #}
+            {% for chore in chores_data %}
+                <div class="col-md-6 col-lg-4 mb-3"> {# Colunas para responsividade #}
+                    <div class="card activity-card chore-card h-100 {% if chore.is_completed_api %}border-success shadow-sm{% else %}border-primary shadow-sm{% endif %}">
+                        <div class="card-header {% if chore.is_completed_api %}bg-success-subtle text-success-emphasis{% else %}bg-primary-subtle text-primary-emphasis{% endif %}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0 activity-title">
+                                    <i class="bi bi-person-check-fill me-1"></i>{{ chore.npc_name }}
+                                </h5>
+                                {% if chore.is_completed_api %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Concluído</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Ativo</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="card-body p-3"> {# Usando o padding geral do activity-card .card-body #}
+                            <div class="row g-0">
+                                <div class="col-3 activity-icon-col text-center"> {# Coluna para imagem/ícone do NPC #}
                                     {% set npc_filename_base = chore.npc_key_for_filename | lower %}
                                     {% set npc_image_path = 'images/npcs/' + npc_filename_base + '.png' %}
                                     <img src="{{ url_for('static', filename=npc_image_path) }}"
                                          alt="{{ chore.npc_name }}"
-                                         class="img-fluid rounded-start w-100 h-100"
-                                         style="object-fit: contain; background-color: #f0f0f0; image-rendering: pixelated;"
+                                         class="img-fluid rounded" {# Removido w-100 h-100 para usar max-width/height do CSS se necessário #}
+                                         style="max-width: 50px; height: auto; object-fit: contain; background-color: #f0f0f0; image-rendering: pixelated;"
                                          data-placeholder-url="{{ url_for('static', filename='images/misc/placeholder_npc.png') }}"
                                          onerror="this.style.backgroundColor='#e0e0e0'; this.src=this.dataset.placeholderUrl; this.onerror=null;">
                                 </div>
-                                <div class="col-8 d-flex flex-column">
-                                    <div class="card-body p-2 d-flex flex-column">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <div class="flex-grow-1 me-2">
-                                                <h6 class="card-title mb-0 {% if chore.is_completed_api %}text-success{% else %}text-primary{% endif %}" style="font-size: 0.9rem;">
-                                                    <strong>{{ chore.npc_name }}:</strong><br>
-                                                    <span style="font-weight: normal; font-size: 0.85em;">{{ chore.description }}</span>
-                                                </h6>
-                                            </div>
-                                            {% if chore.is_completed_api %}
-                                                <span class="badge bg-success ms-auto align-self-center flex-shrink-0"><i class="bi bi-check-circle-fill me-1"></i>Concluído</span>
-                                            {% else %}
-                                                <span class="badge bg-warning text-dark ms-auto align-self-center flex-shrink-0"><i class="bi bi-hourglass-split me-1"></i>Ativo</span>
-                                            {% endif %}
-                                        </div>
-                                        {% if chore.is_completed_api and chore.completed_at_formatted and chore.completed_at_formatted != 'Data inválida' %}
-                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">Concluído em: {{ chore.completed_at_formatted }}</p>
-                                        {% elif not chore.is_completed_api and chore.started_at_formatted and chore.started_at_formatted != 'Data inválida' %}
-                                            <p class="card-text small text-muted mb-1" style="font-size: 0.75rem;">Iniciado em: {{ chore.started_at_formatted }}</p>
-                                        {% endif %}
-                                        <hr class="my-1">
-                                        <div class="mt-auto"> 
-                                            <strong class="d-block mb-1" style="font-size: 0.8em;">Recompensa(s):</strong>
-                                            {% if chore.base_seasonal_tickets > 0 or chore.final_seasonal_tickets > 0 %}
-                                                <div class="mb-1 d-flex align-items-center" style="font-size: 0.8rem;">
-                                                    {% set chore_token_icon_filename = 'images/misc/' + token_name | lower + '.png' %}
-                                                    <img src="{{ url_for('static', filename=chore_token_icon_filename) }}" 
-                                                         alt="{{ token_name }}" style="width: 16px; height: 16px;" 
-                                                         class="me-1 flex-shrink-0" onerror="this.style.display='none';"> 
-                                                    <span class="fw-bold me-1">{{ chore.final_seasonal_tickets }} {{ token_name }}</span>
-                                                    {% if chore.bonus_applied_to_tickets and chore.bonus_amount_tickets > 0 %}
-                                                        <span class="text-success small" title="Bônus aplicado">(+{{ chore.bonus_amount_tickets }})</span>
-                                                    {% endif %}
-                                                </div>
-                                            {% endif %}
-                                            {% for other_reward in chore.other_rewards_formatted %}
-                                                <div class="small text-muted mb-0" style="font-size: 0.75rem;">{{ other_reward }}</div>
-                                            {% endfor %}
-                                            {% if not (chore.base_seasonal_tickets > 0 or chore.final_seasonal_tickets > 0) and not chore.other_rewards_formatted %}
-                                                <div class="small text-muted" style="font-size: 0.75rem;">Nenhuma recompensa principal em {{token_name}}.</div>
-                                            {% endif %}
-                                        </div>
-                                    </div>
+                                <div class="col-9 activity-details-col ps-2"> {# Coluna para detalhes do chore #}
+                                    <p class="activity-description mb-1">{{ chore.description }}</p>
+                                    {% if chore.is_completed_api and chore.completed_at_formatted and chore.completed_at_formatted != 'Data inválida' %}
+                                        <p class="small text-muted mb-2" style="font-size: 0.7rem;">Concluído em: {{ chore.completed_at_formatted }}</p>
+                                    {% elif not chore.is_completed_api and chore.started_at_formatted and chore.started_at_formatted != 'Data inválida' %}
+                                        <p class="small text-muted mb-2" style="font-size: 0.7rem;">Iniciado em: {{ chore.started_at_formatted }}</p>
+                                    {% endif %}
                                 </div>
                             </div>
+                            
+                            <hr class="my-2">
+                            
+                            <div class="activity-reward">
+                                <strong style="font-size: 0.85rem;">Recompensa(s):</strong>
+                                {% if chore.final_seasonal_tickets > 0 %}
+                                    <p class="mb-1 reward-line">
+                                        {% set chore_token_icon_filename = 'images/misc/' + token_name | lower + '.png' %}
+                                        <img src="{{ url_for('static', filename=chore_token_icon_filename) }}" 
+                                             alt="{{ token_name }}" style="width: 16px; height: 16px; vertical-align: middle;" 
+                                             class="me-1" onerror="this.style.display='none';"> 
+                                                <span class="fw-bold me-1 currency-ticket">{{ chore.final_seasonal_tickets }} {{ token_name }}</span>
+                                        {% if chore.bonus_applied_to_tickets and chore.bonus_amount_tickets > 0 %}
+                                            <span class="reward-details">(Base: {{ chore.base_seasonal_tickets }}, Bônus: +{{ chore.bonus_amount_tickets }})</span>
+                                        {% endif %}
+                                    </p>
+                                {% endif %}
+                                {% for other_reward in chore.other_rewards_formatted %}
+                                    <p class="mb-1 small text-muted" style="font-size: 0.75rem;">{{ other_reward }}</p>
+                                {% endfor %}
+                                {% if chore.final_seasonal_tickets <= 0 and not chore.other_rewards_formatted %}
+                                    <p class="small text-muted mb-0" style="font-size: 0.75rem;">Nenhuma recompensa principal em {{token_name}}.</p>
+                                {% endif %}
+                            </div>
                         </div>
-                    {% endfor %}
+                    </div>
                 </div>
-            </div>
+            {% endfor %}
         </div>
     {% elif chores_data is defined and not chores_data %}
         <div class="alert alert-light text-center" role="alert">
@@ -88,9 +87,9 @@
     <hr class="my-4"> 
     <h4 class="text-info mb-3"><i class="bi bi-bar-chart-line-fill me-2"></i>Análise Histórica de Afazeres (Chores)</h4>
     <div class="card border-info shadow-sm mb-3">
+        {# ... (Conteúdo da análise histórica de chores permanece o mesmo) ... #}
         <div class="card-body">
             {% if analise_chores is defined and analise_chores is not none %}
-                {# ... (lógica interna para exibir status e dados de analise_chores, como na sua última versão funcional) ... #}
                 {% if analise_chores.status == 'sem_historico' %}
                     <p class="text-muted mb-0"><em>{{ analise_chores.mensagem | default('Nenhum histórico de afazeres encontrado para análise para o período selecionado.') }}</em></p>
                 {% elif analise_chores.status in ['erro_analise_chores', 'erro_calculo_base'] or analise_chores.get('erro') %}
@@ -120,12 +119,12 @@
                 {% else %}
                     <p class="text-muted mb-0"><em>Aguardando dados para exibir a análise histórica de afazeres.</em></p>
                 {% endif %}
-            {% else %} {# analise_chores não está definida ou é None #}
+            {% else %} 
                 <p class="text-muted mb-0"><em>A análise histórica de afazeres não está disponível ou não pôde ser carregada.</em></p>
             {% endif %}
         </div>
     </div>
-{% elif not farm_id_submitted %} {# Se nenhum farm ID foi submetido ainda para a página inteira #}
+{% elif not farm_id_submitted %} 
     <div class="alert alert-info mt-3">
         Por favor, busque um Farm ID para ver os dados de afazeres e sua análise histórica.
     </div>

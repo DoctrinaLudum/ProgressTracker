@@ -220,9 +220,12 @@ def calcular_custo_minimo_desbloqueio(tier_alvo, itens_loja, marked_item_names):
     total_unlock_cost_tickets = 0
     final_unlock_items_details_list = [] 
     marked_item_names_set = set(marked_item_names)
-    log.debug(f"Calculando custo desbloqueio detalhado para Tier {tier_alvo} com marcados: {marked_item_names}")
+    log.debug(f"Iniciando calcular_custo_minimo_desbloqueio para Tier {tier_alvo}.")
+    # Log mais curto para itens_loja se for muito grande, mostrando apenas as chaves ou uma amostra.
+    log.debug(f"  Itens da loja recebidos ({len(itens_loja)} itens): {list(itens_loja.keys()) if len(itens_loja) < 20 else str(list(itens_loja.keys())[:10]) + '... (e mais)'}")
+    log.debug(f"  Itens marcados recebidos: {marked_item_names}")
     for tier_a_comprar in range(1, tier_alvo):
-        log.debug(f" -> Analisando Tier {tier_a_comprar}...")
+        # Log movido para dentro do if needed > 0 ou após cálculo de 'needed' para melhor contexto
         preselected_in_tier_names = [
             name for name in marked_item_names_set
             if itens_loja.get(name, {}).get('tier') == tier_a_comprar
@@ -230,7 +233,7 @@ def calcular_custo_minimo_desbloqueio(tier_alvo, itens_loja, marked_item_names):
         num_preselected = len(preselected_in_tier_names)
         log.debug(f"    Itens pré-selecionados: {num_preselected} ({preselected_in_tier_names})")
         for name in preselected_in_tier_names:
-            data = itens_loja.get(name, {})
+            data = itens_loja.get(name, {}) # type: ignore # mypy pode reclamar aqui se itens_loja não for bem tipado
             final_unlock_items_details_list.append({
                 'name': name,
                 'cost': data.get('cost'),
@@ -239,7 +242,7 @@ def calcular_custo_minimo_desbloqueio(tier_alvo, itens_loja, marked_item_names):
                 'source': 'marked' 
             })
         needed = max(0, 4 - num_preselected)
-        log.debug(f"    Itens adicionais necessários: {needed}")
+        log.debug(f" -> Analisando Tier {tier_a_comprar} para desbloqueio. Itens adicionais necessários: {needed}")
         cost_of_preselected_tickets = sum(
             itens_loja[name]['cost'] for name in preselected_in_tier_names
             if itens_loja[name].get('currency') == 'ticket' and isinstance(itens_loja[name].get('cost'), (int, float))
@@ -255,10 +258,17 @@ def calcular_custo_minimo_desbloqueio(tier_alvo, itens_loja, marked_item_names):
                     isinstance(data.get('cost'), (int, float)) and data['cost'] > 0 and
                     name not in marked_item_names_set): 
                       candidates.append({'name': name, 'cost': data['cost'], 'currency': 'ticket', 'tier': tier_a_comprar, 'source': 'calculated'})
-            log.debug(f"    Candidatos (ticket, não marcados): {len(candidates)}")
+            log.debug(f"    Candidatos (ticket, não marcados) para Tier {tier_a_comprar} ({len(candidates)} itens): {[c['name'] for c in candidates]}")
             if len(candidates) < needed:
-                log.warning(f"Impossível desbloquear Tier {tier_a_comprar + 1}! Faltam itens de TICKET não marcados no Tier {tier_a_comprar}.")
-                return {'unlock_cost': float('inf'), 'unlock_items_details': []}
+                log.warning(f"Impossível desbloquear Tier {tier_a_comprar + 1}! Faltam itens de TICKET não marcados no Tier {tier_a_comprar}. "
+                        f"Encontrados: {len(candidates)}, Necessários: {needed}. "
+                        f"Candidatos encontrados: {[c['name'] for c in candidates]}. "
+                        f"Itens no `itens_loja` (considerados para este tier {tier_a_comprar} de desbloqueio): "
+                        f"{ {k:v for k,v in itens_loja.items() if v.get('tier') == tier_a_comprar} }")
+                # Retorna os itens coletados até o ponto da falha, para depuração ou exibição parcial
+                final_unlock_items_details_list.sort(key=lambda x: (x.get('tier', 0), x.get('name', '')))
+                return {'unlock_cost': float('inf'), 'unlock_items_details': final_unlock_items_details_list}
+
             candidates.sort(key=lambda item: item['cost'])
             cheapest_needed_details = candidates[:needed] 
             cost_of_needed_tickets = sum(item['cost'] for item in cheapest_needed_details)

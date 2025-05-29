@@ -7,6 +7,12 @@ $(document).ready(function() {
     $('#analysisTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
         if (e.target.id === 'shop-tab') {
             $('#results-area-shop').removeClass('d-none');
+            // Quando a aba da loja é mostrada, podemos re-inicializar tooltips dentro dela se necessário
+            $('#results-area-shop [data-bs-toggle="tooltip"]').each(function() {
+                if (!bootstrap.Tooltip.getInstance(this)) {
+                    new bootstrap.Tooltip(this);
+                }
+            });
         } else {
             $('#results-area-shop').addClass('d-none');
         }
@@ -15,31 +21,46 @@ $(document).ready(function() {
     
     // --- Bloco Inicial: Formulário Principal e Tooltips Estáticos ---
     const farmForm = $('#farm-form');
-    const loadingIndicator = $('#loading-indicator');
     const submitButton = farmForm.find('button[type="submit"]');
-    const originalButtonHTML = submitButton.html();
+    let originalButtonHTML = ''; 
 
-    // Inicializa tooltips que já existem na página ao carregar
+    if (submitButton.length) {
+        originalButtonHTML = submitButton.html(); 
+    }
+
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 
     if (farmForm.length) {
-        farmForm.on('submit', function() {
-            if (loadingIndicator.length) { loadingIndicator.find('p').text('Buscando dados...'); loadingIndicator.show(); }
-            if (submitButton.length) { submitButton.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Buscando...'); }
+        farmForm.on('submit', function(event) { 
+            if (submitButton.length) {
+                const loadingGifUrl = submitButton.data('loading-gif-url'); 
+                if (loadingGifUrl && loadingGifUrl.trim() !== '') { 
+                    submitButton.prop('disabled', true).html(
+                        '<img src="' + loadingGifUrl + '" alt="Carregando..." style="height: 24px; width: auto; margin-right: 8px; vertical-align: middle;"> Buscando...'
+                    );
+                } else { 
+                    console.warn("URL do GIF de carregamento não encontrada no data-attribute do botão. Usando spinner padrão.");
+                    submitButton.prop('disabled', true).html(
+                        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Buscando...'
+                    );
+                }
+            }
         });
     }
-    if (submitButton.length) { submitButton.prop('disabled', false).html(originalButtonHTML); }
     // --- Fim Bloco Inicial ---
 
     // --- Handler Erro Imagem (Placeholder) ---
+    // Garantir que este handler funcione para imagens adicionadas dinamicamente também, se necessário.
+    // Usar $(document).on('error', '.shop-item-image', function() { ... }); pode ser mais robusto
+    // se as imagens da loja forem carregadas via AJAX, mas como é include, .each() no ready é ok.
     $('.shop-item-image').each(function() {
         const $img = $(this);
         const placeholderSrc = $img.data('placeholder-src');
-        const initialSrc = $img.attr('src');
+        // const initialSrc = $img.attr('src'); // Não usado
         const altText = $img.attr('alt');
         const showPlaceholderOnError = function() {
-            $img.off('error'); // Previne loop
+            $img.off('error'); 
             if (placeholderSrc && $img.attr('src') !== placeholderSrc) {
                 $img.attr('src', placeholderSrc); $img.attr('alt', altText + ' (imagem não encontrada)');
             } else { $img.attr('alt', altText + ' (placeholder indisponível ou já em uso)'); }
@@ -49,7 +70,7 @@ $(document).ready(function() {
     // --- FIM Handler Erro Imagem ---
 
     // --- Handler Checkbox: Marcar/Desmarcar Itens ---
-    $(document).on('change', '#results-area-shop .unlock-item-marker', function() { // MODIFICADO
+    $(document).on('change', '#results-area-shop .unlock-item-marker', function() {
         const checkbox = $(this);
         const itemName = checkbox.data('item-name');
         const isChecked = checkbox.prop('checked');
@@ -62,159 +83,165 @@ $(document).ready(function() {
             $itemCard.removeClass('marked-for-unlock');
             delete markedUnlockItems[itemName];
         }
-        console.log("Itens Marcados Atualizados:", markedUnlockItems); // Log do estado atual
+        console.log("Itens Marcados Atualizados:", markedUnlockItems);
     });
 
     // --- Handler Click Checkbox: Impedir Propagação ---
-    $(document).on('click', '#results-area-shop .unlock-item-marker', function(event) { // MODIFICADO
-        event.stopPropagation(); // Impede que o clique no checkbox ative o clique do card
+    $(document).on('click', '#results-area-shop .unlock-item-marker', function(event) {
+        event.stopPropagation();
     });
-
 
     // --- Handler Click Item da Loja: Calcular Projeção e Detalhes ---
     $(document).on('click', '#results-area-shop .item-selectable', function(event) {
-        event.preventDefault(); // Apenas para itens com '.item-selectable' (tickets)
+        event.preventDefault();
 
         const $itemCard = $(this);
         const itemName = $itemCard.data('item-name');
-        const farmId = $('#results-area h2 span.badge, #results-area-shop h2 span.badge').text().replace('ID:', '').trim();
         
-        // --- Reset Visual ---
-        $('.item-selectable').removeClass('border-primary shadow unlock-path-item').addClass('border-success');
-        const resultsArea = $('#projection-results-area');
-        const detailsArea = $('#calculation-details-area');
-        const simulatorSection = $('#simulator-section');
-        resultsArea.html('<p class="text-center"><span class="spinner-border spinner-border-sm"></span> Calculando...</p>');
-        detailsArea.empty();    // Limpa detalhes antigos
-        simulatorSection.hide(); // Esconde simulador
+        // Elementos de resultado específicos da LOJA
+        const resultsAreaShop = $('#results-area-shop #projection-results-area');
+        const detailsAreaShop = $('#results-area-shop #calculation-details-area');
+        const simulatorSectionShop = $('#results-area-shop #simulator-section');
 
-        if (itemName && farmId) {
-            const markedItemsList = Object.keys(markedUnlockItems);
+        // --- Reset Visual e de Conteúdo da LOJA---
+        $('#results-area-shop .item-selectable').removeClass('border-primary shadow unlock-path-item').addClass('border-success');
+        resultsAreaShop.html('<p class="text-center text-muted small"><i class="bi bi-arrow-clockwise"></i> Carregando projeção...</p>');
+        detailsAreaShop.empty();
+        simulatorSectionShop.hide().data('current-item', null).data('current-cost', null);
+        $('#results-area-shop #simulated-rate-input').val(''); // Target input específico da loja
+        $('#results-area-shop #simulation-results-area').html(''); // Target área de simulação específica da loja
 
-            // <<< NOVO: Pega a taxa histórica do data-attribute >>>
-            let historicalRateData = $('#historical-daily-rate-info').data('historical-rate');
-            let historicalRateNum = null;
+        // --- Obtenção Segura do Farm ID ---
+        const farmIdElement = $('#current-farm-id-data'); // ID do span que criamos no index.html
+        const farmId = farmIdElement.length ? farmIdElement.data('farm-id') : null;
 
-            if (historicalRateData !== "" && historicalRateData !== undefined) {
-                let parsedRate = parseFloat(historicalRateData);
-                if (!isNaN(parsedRate) && parsedRate > 0) {
-                    historicalRateNum = parsedRate;
-                }
-            }
-            // <<< FIM NOVO >>>
-
-            console.log(`Enviando AJAX Proj.: Item=${itemName}, Farm=${farmId}, Marcados:`, markedItemsList, `Taxa Histórica (do data-attr): ${historicalRateData}, Usada se válida: ${historicalRateNum}`);
-
-            // Constrói o payload do AJAX
-            let ajaxData = {
-                item_name: itemName,
-                farm_id: farmId,
-                marked_items: markedItemsList
-            };
-
-            // <<< NOVO: Adiciona historical_rate ao payload AJAX se existir e for válido >>>
-            if (historicalRateNum !== null) {
-                ajaxData.historical_rate = historicalRateNum;
-                console.log("Taxa histórica numérica válida encontrada e será enviada:", historicalRateNum);
-            } else {
-                console.log("Nenhuma taxa histórica numérica válida encontrada no data-attribute. Não será enviada.");
-            }
-            // <<< FIM NOVO >>>
-
-             $.ajax({
-                url: '/calculate_projection',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(ajaxData), // << MODIFICADO para usar o objeto ajaxData
-                dataType: 'json',
-                success: function(response) {
-                    console.log("Resposta AJAX Proj.:", response);
-                    if (response.success) {
-
-                        // --- 1. Monta HTML da Projeção Principal ---
-                        let resultHtml = `<h6>Resultado para: <strong class="text-success">${response.item_name || '??'}</strong></h6><ul class="list-unstyled small mb-0"><li>Custo Total Estimado <span class="text-muted" data-bs-toggle="tooltip" title="Inclui custo tickets p/ desbloquear (considerando marcados).">(c/ desbloqueio)</span>: <strong>${response.calculated_cost !== null ? response.calculated_cost + ' ' + (response.token_name || 'Tickets') : 'N/A'}</strong></li><li>Dias Estimados para Obter: <strong>`;
-                        const remaining_days = response.remaining_season_days;
-                        let daysWarning = '';
-                        if (remaining_days !== null && response.projected_days !== null && response.projected_days > remaining_days) {
-                            daysWarning = ` <span class="text-danger small ms-1" data-bs-toggle="tooltip" title="Prazo (${response.projected_days}d) excede os ${remaining_days} dias restantes!">⚠️ Excede!</span>`;
-                        }
-                        if (response.projected_days !== null) { resultHtml += ` ~${response.projected_days} dia(s)${daysWarning} <small class="text-muted d-block">(Taxa: ${response.avg_daily_rate_used?.toFixed(1) || 'N/D'}/dia)</small>`; } else { resultHtml += `Incalculável`; }
-                        resultHtml += `</strong></li></ul>`;
-                        resultsArea.html(resultHtml);
-
-                        // --- 2. Monta HTML dos Detalhes do Cálculo ---
-                        if (response.calculated_cost !== null) {
-                            let detailsHtml = `<h6 class="text-muted">Detalhes do Cálculo:</h6><ul class="list-unstyled small mb-0">`;
-                            if (response.base_item_cost !== null) { detailsHtml += `<li>Custo Base: <strong>${response.base_item_cost} <span class="currency-ticket">${response.token_name || ''}</span></strong></li>`; }
-                            let unlockCostDisplay = response.calculated_unlock_cost !== null ? response.calculated_unlock_cost : 0;
-                            detailsHtml += `<li>Custo Desbloqueio: <strong>${unlockCostDisplay} <span class="currency-ticket">${response.token_name || ''}</span></strong></li>`;
-                            const pathItems = response.unlock_path_items_details || [];
-                            if (pathItems.length > 0) {
-                                let firstTier = pathItems[0]?.tier || '?'; let lastTier = pathItems[pathItems.length - 1]?.tier || '?';
-                                detailsHtml += `<li class="mt-2">Itens no Caminho (T${firstTier}-T${lastTier}):</li><ul class="list-unstyled ms-3">`;
-                                pathItems.forEach(function(item) {
-                                    detailsHtml += `<li class="py-1">`;
-                                    if (item.source === 'marked') { detailsHtml += `<i class="bi bi-check-square-fill text-primary me-1" data-bs-toggle="tooltip" title="Marcado por você."></i> `; } else { detailsHtml += `<i class="bi bi-calculator text-muted me-1" data-bs-toggle="tooltip" title="Calculado (ticket mais barato)."></i> `; }
-                                    detailsHtml += `${item.name} <span class="text-muted">(`;
-                                    if (item.currency === 'ticket' && item.cost !== null) { detailsHtml += `${item.cost} <span class="currency-ticket">${response.token_name || ''}</span>`; } else if (item.currency === 'sfl') { detailsHtml += `<span class="currency-sfl">Flower</span>`; } else if (item.currency === 'broken_pillar') { detailsHtml += `<span class="currency-broken_pillar">Pillar</span>`; } else if (item.currency) { detailsHtml += `${item.currency}`; } else { detailsHtml += `?`; }
-                                    detailsHtml += `)</span></li>`;
-                                });
-                                detailsHtml += `</ul>`;
-                            } else if (unlockCostDisplay === 0) { detailsHtml += `<li class="mt-2 text-muted"><em>Item de Tier 1 (sem desbloqueio).</em></li>`; }
-                            detailsHtml += `</ul>`;
-                            detailsArea.html(detailsHtml);
-                        } else { detailsArea.empty(); }
-
-                        // --- 3. Inicializa TODOS os Tooltips Dinâmicos (Resultados + Detalhes) ---
-                        // REATIVADO E UNIFICADO
-                        $('#projection-results-area [data-bs-toggle="tooltip"], #calculation-details-area [data-bs-toggle="tooltip"]').each(function() {
-                             if (!bootstrap.Tooltip.getInstance(this)) { // Evita reinicializar
-                                 try { new bootstrap.Tooltip(this); } catch(e){ console.error("Erro ao inicializar tooltip dinâmico:", e, this); }
-                             }
-                        });
-                        // --- Fim Inicializa Tooltips ---
-
-                        // --- 4. Destaque do Caminho de Desbloqueio ---
-                        const unlockItems = response.unlock_path_items || [];
-                        $('.item-selectable.unlock-path-item').removeClass('unlock-path-item'); // Limpa anteriores
-                        if (unlockItems.length > 0) {
-                            // console.log("Itens de desbloqueio para destacar:", unlockItems); // Log opcional
-                            unlockItems.forEach(function(unlockItemName) {
-                                $('#results-area-shop .item-selectable[data-item-name="' + unlockItemName + '"]') // MODIFICADO
-                                    .addClass('unlock-path-item')
-                                    .removeClass('border-success');
-                            });
-                        }
-                        // --- Fim Destaque Caminho ---
-
-                        // --- 5. Destaque Principal (Item Clicado) ---
-                        $itemCard.removeClass('border-success unlock-path-item').addClass('border-primary shadow');
-
-                        // --- 6. Mostra e Prepara Simulador ---
-                        simulatorSection.data('current-item', response.item_name);
-                        simulatorSection.data('current-cost', response.calculated_cost !== Infinity ? response.calculated_cost : null);
-                        simulatorSection.show();
-                        $('#simulation-results-area').html(''); // Limpa resultado anterior
-                        $('#simulated-rate-input').val('');     // Limpa input anterior
-
-                    } else { // Erro retornado pelo backend
-                        resultsArea.html(`<p class="text-danger small">Erro: ${response.error || 'Falha ao calcular.'}</p>`);
-                        detailsArea.empty();
-                        simulatorSection.hide();
-                    }
-                }, // Fim Success AJAX Projeção
-                error: function(jqXHR, textStatus, errorThrown) { // Erro de conexão/servidor
-                    console.error("Erro AJAX Projeção:", textStatus, errorThrown);
-                    resultsArea.html('<p class="text-danger small">Erro de conexão ao calcular.</p>');
-                    detailsArea.empty();
-                    simulatorSection.hide();
-                }
-            }); // Fim AJAX
-        } else { 
-            console.warn("ItemName ou FarmID faltando. Cálculo de projeção não acionado.");
-            resultsArea.html('<p class="text-warning small">Informações insuficientes para calcular (item ou ID da fazenda faltando).</p>');
+        if (!farmId) {
+            console.error("LOJA: Farm ID não encontrado em #current-farm-id-data.");
+            resultsAreaShop.html('<p class="text-danger small text-center">Erro: ID da Fazenda não encontrado. Realize uma busca primeiro.</p>');
+            return;
         }
-    }); // Fim .item-selectable click
+
+        if (!itemName) {
+            console.warn("LOJA: Nome do item não encontrado.");
+            resultsAreaShop.html('<p class="text-warning small text-center">Erro: Item não especificado.</p>');
+            return;
+        }
+
+        const markedItemsList = Object.keys(markedUnlockItems);
+
+        const historicalRateElementShop = $('#results-area-shop #historical-daily-rate-info');
+        let historicalRateData = historicalRateElementShop.length ? historicalRateElementShop.data('historical-rate') : '';
+        let historicalRateNum = null;
+
+        if (historicalRateData !== "" && historicalRateData !== undefined) {
+            let parsedRate = parseFloat(historicalRateData);
+            if (!isNaN(parsedRate) && parsedRate > 0) {
+                historicalRateNum = parsedRate;
+            } else {
+                console.warn(`LOJA: historicalRateData ('${historicalRateData}') da loja não é um número positivo válido.`);
+            }
+        } else {
+            console.warn("LOJA: #historical-daily-rate-info da loja não encontrado ou `data-historical-rate` vazio.");
+        }
+
+        console.log(`LOJA - Enviando AJAX Proj.: Item=${itemName}, Farm=${farmId}, Marcados:`, markedItemsList, `Taxa Hist. do Attr: ${historicalRateData}, Usada: ${historicalRateNum}`);
+
+        let ajaxData = {
+            item_name: itemName,
+            farm_id: farmId,
+            marked_items: markedItemsList
+        };
+
+        if (historicalRateNum !== null && !isNaN(historicalRateNum)) {
+            ajaxData.historical_rate = historicalRateNum;
+        }
+
+        resultsAreaShop.html('<p class="text-center"><span class="spinner-border spinner-border-sm"></span> Calculando para ' + itemName + '...</p>');
+
+        $.ajax({
+            url: '/calculate_projection',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(ajaxData),
+            dataType: 'json',
+            success: function(response) {
+                console.log("LOJA - Resposta AJAX Proj.:", response);
+                if (response.success) {
+                    let resultHtml = `<h6>Resultado para: <strong class="text-success">${response.item_name || '??'}</strong></h6><ul class="list-unstyled small mb-0"><li>Custo Total Estimado <span class="text-muted" data-bs-toggle="tooltip" title="Inclui custo tickets p/ desbloquear (considerando marcados).">(c/ desbloqueio)</span>: <strong>${response.calculated_cost !== null ? response.calculated_cost + ' ' + (response.token_name || 'Tickets') : 'N/A'}</strong></li><li>Dias Estimados para Obter: <strong>`;
+                    const remaining_days = response.remaining_season_days;
+                    let daysWarning = '';
+                    if (remaining_days !== null && response.projected_days !== null && response.projected_days > remaining_days) {
+                        daysWarning = ` <span class="text-danger small ms-1" data-bs-toggle="tooltip" title="Prazo (${response.projected_days}d) excede os ${remaining_days} dias restantes!">⚠️ Excede!</span>`;
+                    }
+                    if (response.projected_days !== null) { resultHtml += ` ~${response.projected_days} dia(s)${daysWarning} <small class="text-muted d-block">(Taxa: ${response.avg_daily_rate_used?.toFixed(1) || 'N/D'}/dia)</small>`; } else { resultHtml += `Incalculável`; }
+                    resultHtml += `</strong></li></ul>`;
+                    resultsAreaShop.html(resultHtml);
+
+                    if (response.calculated_cost !== null) {
+                        let detailsHtml = `<h6 class="text-muted mt-2">Detalhes do Cálculo:</h6><ul class="list-unstyled small mb-0">`; // Adicionado mt-2
+                        if (response.base_item_cost !== null) { detailsHtml += `<li>Custo Base: <strong>${response.base_item_cost} <span class="currency-ticket">${response.token_name || ''}</span></strong></li>`; }
+                        let unlockCostDisplay = response.calculated_unlock_cost !== null ? response.calculated_unlock_cost : 0;
+                        detailsHtml += `<li>Custo Desbloqueio: <strong>${unlockCostDisplay} <span class="currency-ticket">${response.token_name || ''}</span></strong></li>`;
+                        const pathItems = response.unlock_path_items_details || [];
+                        if (pathItems.length > 0) {
+                            let firstTier = pathItems[0]?.tier || '?'; let lastTier = pathItems[pathItems.length - 1]?.tier || '?';
+                            detailsHtml += `<li class="mt-2">Itens no Caminho (T${firstTier}-T${lastTier}):</li><ul class="list-unstyled ms-3">`;
+                            pathItems.forEach(function(item) {
+                                detailsHtml += `<li class="py-1">`;
+                                if (item.source === 'marked') { detailsHtml += `<i class="bi bi-check-square-fill text-primary me-1" data-bs-toggle="tooltip" title="Marcado por você."></i> `; } else { detailsHtml += `<i class="bi bi-calculator text-muted me-1" data-bs-toggle="tooltip" title="Calculado (ticket mais barato)."></i> `; }
+                                detailsHtml += `${item.name} <span class="text-muted">(`;
+                                if (item.currency === 'ticket' && item.cost !== null) { detailsHtml += `${item.cost} <span class="currency-ticket">${response.token_name || ''}</span>`; } else if (item.currency === 'sfl') { detailsHtml += `<span class="currency-sfl">Flower</span>`; } else if (item.currency === 'broken_pillar') { detailsHtml += `<span class="currency-broken_pillar">Pillar</span>`; } else if (item.currency) { detailsHtml += `${item.currency}`; } else { detailsHtml += `?`; }
+                                detailsHtml += `)</span></li>`;
+                            });
+                            detailsHtml += `</ul>`;
+                        } else if (unlockCostDisplay === 0 && response.base_item_cost !== null) { // Apenas se for item de tier 1 com custo
+                             detailsHtml += `<li class="mt-2 text-muted small"><em>Item de Tier 1 (sem custo de desbloqueio).</em></li>`;
+                        }
+                        detailsHtml += `</ul>`;
+                        detailsAreaShop.html(detailsHtml);
+                    } else { detailsAreaShop.empty(); }
+
+                    $('#results-area-shop [data-bs-toggle="tooltip"]').each(function() { // Target tooltips específicos da loja
+                         if (!bootstrap.Tooltip.getInstance(this)) { 
+                             try { new bootstrap.Tooltip(this); } catch(e){ console.error("LOJA - Erro ao inicializar tooltip dinâmico:", e, this); }
+                         }
+                    });
+
+                    const unlockItems = response.unlock_path_items || [];
+                    $('#results-area-shop .item-selectable.unlock-path-item').removeClass('unlock-path-item'); 
+                    if (unlockItems.length > 0) {
+                        unlockItems.forEach(function(unlockItemName) {
+                            $('#results-area-shop .item-selectable[data-item-name="' + unlockItemName + '"]')
+                                .addClass('unlock-path-item')
+                                .removeClass('border-success');
+                        });
+                    }
+                    $itemCard.removeClass('border-success unlock-path-item').addClass('border-primary shadow');
+
+                    if (response.calculated_cost !== null && response.calculated_cost !== Infinity) {
+                        simulatorSectionShop.data('current-item', response.item_name);
+                        simulatorSectionShop.data('current-cost', response.calculated_cost);
+                        simulatorSectionShop.show();
+                    } else {
+                        simulatorSectionShop.hide();
+                    }
+                    $('#results-area-shop #simulation-results-area').html(''); 
+                    $('#results-area-shop #simulated-rate-input').val('');     
+
+                } else { 
+                    resultsAreaShop.html(`<p class="text-danger small text-center">Erro ao calcular: ${response.error || 'Falha desconhecida.'}</p>`);
+                    detailsAreaShop.empty();
+                    simulatorSectionShop.hide();
+                }
+            }, 
+            error: function(jqXHR, textStatus, errorThrown) { 
+                console.error("LOJA - Erro AJAX Projeção:", textStatus, errorThrown);
+                resultsAreaShop.html('<p class="text-danger small text-center">Erro de conexão ao calcular projeção.</p>');
+                detailsAreaShop.empty();
+                simulatorSectionShop.hide();
+            }
+        });
+    }); 
 
 
     // --- Handler para o Botão Simular ---
@@ -448,6 +475,216 @@ $(document).ready(function() {
         });
     }
     // --- Fim Lógica Simulador de Impacto de Buffs ---
+
+    // --- INÍCIO: Lógica para Compra Manual no Calendário Potencial ---
+    const manualPurchaseModalElement = document.getElementById('manualPurchaseModal');
+    let manualPurchaseModalInstance; // Declarar aqui
+
+    if (manualPurchaseModalElement) { // Inicializar somente se o elemento existir
+        console.log("Tentativa de inicialização do manualPurchaseModal no carregamento.");
+        manualPurchaseModalInstance = new bootstrap.Modal(manualPurchaseModalElement, {
+            keyboard: false
+        });
+    } else {
+        console.warn("Elemento #manualPurchaseModal não encontrado no DOM durante o carregamento inicial. Será inicializado no primeiro clique, se encontrado.");
+    }
+
+    let currentCalendarData = [];
+    if (window.potentialCalendarData && Array.isArray(window.potentialCalendarData) && window.potentialCalendarData.length > 0) {
+        currentCalendarData = JSON.parse(JSON.stringify(window.potentialCalendarData)); // Cópia profunda
+        currentCalendarData.forEach(dayData => {
+            dayData.user_display_active_buffs = []; // Buffs que o usuário realmente "tem"
+            // Adicionar VIP global se aplicável e não for um item comprável explicitamente aqui
+            if (window.seasonalBuffsConfiguration && window.seasonalBuffsConfiguration.vip && window.config_simIdealPlayerHasVip === true) {
+                dayData.user_display_active_buffs.push('VIP'); // Assumindo 'VIP' como ID/nome do buff VIP
+            }
+            dayData.manual_purchases = []; // Compras feitas pelo usuário neste dia
+            dayData.manual_cost_total_day = 0; // Custo total das compras manuais neste dia
+            dayData.active_buffs_str = dayData.user_display_active_buffs.join(', '); // String para exibição
+        });
+        // Recalcular saldos iniciais após limpar buffs/compras da simulação ideal original
+        for (let i = 0; i < currentCalendarData.length; i++) {
+            if (i > 0) {
+                currentCalendarData[i].balance_start_day = parseFloat(currentCalendarData[i-1].balance_end_day);
+            }
+            // O total_gains_today vem da simulação ideal e não muda com compras manuais
+            currentCalendarData[i].balance_end_day = parseFloat(currentCalendarData[i].balance_start_day) + parseFloat(currentCalendarData[i].total_gains_today) - (currentCalendarData[i].manual_cost_total_day || 0);
+        }
+    } else {
+        console.warn("window.potentialCalendarData não está disponível ou está vazio. Funcionalidade de compra manual pode não funcionar corretamente.");
+    }
+
+    // Abrir o modal de compra manual
+    $(document).on('click', '.open-manual-purchase-modal', function() {
+        console.log("Botão '.open-manual-purchase-modal' clicado.");
+        const dayIndex = parseInt($(this).data('day-index'));
+        const dateDisplay = $(this).data('date-display');
+
+        if (isNaN(dayIndex) || !currentCalendarData || !currentCalendarData[dayIndex]) {
+            console.error("Índice do dia inválido ou dados do calendário não encontrados para o dia:", dayIndex, currentCalendarData);
+            alert("Erro ao obter dados para este dia do calendário.");
+            return;
+        }
+
+        // Garantir que o modal esteja instanciado
+        if (!manualPurchaseModalInstance) {
+            const modalElem = document.getElementById('manualPurchaseModal');
+            if (modalElem) {
+                console.log("Inicializando manualPurchaseModalInstance no clique.");
+                manualPurchaseModalInstance = new bootstrap.Modal(modalElem, { keyboard: false });
+            } else {
+                console.error("Elemento #manualPurchaseModal não encontrado no DOM ao tentar abrir.");
+                alert("Erro: Componente de compra não pôde ser carregado. Tente recarregar a aba 'Potencial da Temporada'.");
+                return;
+            }
+        }
+
+        const dayData = currentCalendarData[dayIndex];
+        const currentDayBalance = parseFloat(dayData.balance_end_day); // Saldo final ANTES desta nova compra no dia
+
+        $('#manualPurchaseModalDate').text(dateDisplay);
+        $('#modalBalanceInfo').text(currentDayBalance.toFixed(0));
+        $('#modalTokenName').text(window.seasonalTokenName || 'Tokens');
+        $('#manualPurchaseDayIndex').val(dayIndex);
+
+        const $itemSelect = $('#manualPurchaseItemSelect');
+        $itemSelect.empty().append('<option selected disabled value="">Selecione um item...</option>');
+
+        console.log("Populando select com itens:", window.shopItemsForCalendarPurchase);
+        if (window.shopItemsForCalendarPurchase && window.shopItemsForCalendarPurchase.length > 0) {
+            window.shopItemsForCalendarPurchase.forEach(item => {
+                // Certifique-se que a moeda do item é o token sazonal
+                if (item.currency === window.seasonalTokenName) {
+                    $itemSelect.append(`<option value="${item.name}" data-cost="${item.cost}" data-buff-id="${item.buff_id || ''}">${item.name} (${item.cost} ${window.seasonalTokenName})</option>`);
+                }
+            });
+        } else {
+            $itemSelect.append('<option disabled>Nenhum item da loja disponível para compra com tokens.</option>');
+        }
+        $('#manualPurchaseItemDetails').text('Selecione um item para ver os detalhes.');
+        console.log("Tentando mostrar o modal.");
+        manualPurchaseModalInstance.show();
+    });
+
+    // Atualizar detalhes do item ao selecionar no modal
+    $('#manualPurchaseItemSelect').on('change', function() {
+        const selectedOption = $(this).find('option:selected');
+        const cost = selectedOption.data('cost');
+        const buffId = selectedOption.data('buff-id');
+        let detailsText = `Custo: ${cost} ${window.seasonalTokenName}.`;
+        if (buffId && window.seasonalBuffsConfiguration && window.seasonalBuffsConfiguration[buffId]) {
+            detailsText += ` Ativa o buff: ${buffId}.`;
+        }
+        $('#manualPurchaseItemDetails').text(detailsText);
+    });
+
+    // Confirmar a compra manual
+    $('#confirmManualPurchaseBtn').on('click', function() {
+        console.log("Botão '#confirmManualPurchaseBtn' clicado.");
+        const dayIndex = parseInt($('#manualPurchaseDayIndex').val());
+        const selectedItemOption = $('#manualPurchaseItemSelect').find('option:selected');
+        const itemName = selectedItemOption.val();
+        const itemCost = parseFloat(selectedItemOption.data('cost'));
+        const itemBuffId = selectedItemOption.data('buff-id');
+
+        if (!itemName || isNaN(itemCost) || isNaN(dayIndex) || !currentCalendarData || !currentCalendarData[dayIndex]) {
+            console.warn("Seleção de item inválida, índice do dia ausente ou dados do calendário corrompidos.");
+            alert("Por favor, selecione um item válido.");
+            return;
+        }
+
+        let dayData = currentCalendarData[dayIndex];
+        if (parseFloat(dayData.balance_end_day) < itemCost) {
+            alert("Saldo insuficiente para comprar este item neste dia.");
+            console.warn(`Saldo insuficiente: ${dayData.balance_end_day} < ${itemCost}`);
+            return;
+        }
+
+        // Adicionar a compra ao dia
+        dayData.manual_purchases.push({ name: itemName, cost: itemCost, buff_id: itemBuffId });
+
+        // Deduzir custo e atualizar buffs ativos
+        dayData.balance_end_day = parseFloat(dayData.balance_end_day) - itemCost;
+        dayData.manual_cost_total_day = (dayData.manual_cost_total_day || 0) + itemCost;
+        
+        if (itemBuffId && !dayData.user_display_active_buffs.includes(itemBuffId) && window.seasonalBuffsConfiguration && window.seasonalBuffsConfiguration[itemBuffId]) {
+            dayData.user_display_active_buffs.push(itemBuffId);
+            dayData.user_display_active_buffs.sort(); // Manter ordenado para consistência
+        }
+        dayData.active_buffs_str = dayData.user_display_active_buffs.join(', ');
+
+        console.log(`Compra registrada para o dia ${dayIndex}: ${itemName}, Custo: ${itemCost}. Saldo final dia: ${dayData.balance_end_day}`);
+        console.log(`Buffs ativos do usuário para o dia ${dayIndex}: ${dayData.active_buffs_str}`);
+
+        // Recalcular saldos para dias subsequentes e propagar buffs
+        for (let i = dayIndex + 1; i < currentCalendarData.length; i++) {
+            currentCalendarData[i].balance_start_day = parseFloat(currentCalendarData[i-1].balance_end_day);
+            
+            let dailyManualCostSubsequent = currentCalendarData[i].manual_cost_total_day || 0;
+            currentCalendarData[i].balance_end_day = parseFloat(currentCalendarData[i].balance_start_day) + parseFloat(currentCalendarData[i].total_gains_today) - dailyManualCostSubsequent;
+            
+            // Propagar buffs ativos do usuário
+            // Herda todos os buffs do dia anterior e garante que o novo buff (itemBuffId) esteja lá, se aplicável à compra original
+            // E mantém quaisquer buffs que já foram comprados manualmente para este dia futuro.
+            let previousDayUserBuffs = [...(currentCalendarData[i-1].user_display_active_buffs || [])];
+            let currentDayAlreadyActiveUserBuffs = [...(currentCalendarData[i].user_display_active_buffs || [])];
+
+            let mergedBuffs = [...new Set([...previousDayUserBuffs, ...currentDayAlreadyActiveUserBuffs])];
+
+            // Se o item comprado (itemBuffId) ainda não estiver na lista de buffs propagados/existentes para este dia futuro, adicione-o.
+            if (itemBuffId && !mergedBuffs.includes(itemBuffId) && window.seasonalBuffsConfiguration && window.seasonalBuffsConfiguration[itemBuffId]) {
+                 // Este if garante que o buff só é propagado se foi o buff da compra atual.
+                 // Se a compra original não tinha buff, não há nada a propagar além do que já existia.
+            }
+            // A lógica de propagação de buffs precisa ser cuidadosa.
+            // Os buffs do dia anterior devem ser herdados.
+            // Se um buff foi comprado no 'dayIndex', ele deve ser ativo em 'dayIndex' e todos os dias subsequentes.
+            currentCalendarData[i].user_display_active_buffs = [...new Set([...(currentCalendarData[i-1].user_display_active_buffs || []), ...(currentCalendarData[i].user_display_active_buffs || [])])].sort();
+            currentCalendarData[i].active_buffs_str = currentCalendarData[i].user_display_active_buffs.join(', ');
+        }
+
+        // Atualizar a tabela na interface
+        updatePotentialCalendarTableUI(currentCalendarData);
+        manualPurchaseModalInstance.hide();
+    });
+
+    // Função para atualizar a tabela do calendário na UI
+    function updatePotentialCalendarTableUI(calendarData) {
+        console.log("Atualizando UI da tabela do calendário...");
+        if (!calendarData || !Array.isArray(calendarData)) {
+            console.error("Dados do calendário inválidos para atualização da UI.");
+            return;
+        }
+        calendarData.forEach((dayData, index) => {
+            const $row = $(`#potentialCalendarTableContainer tbody tr:eq(${index})`);
+            if ($row.length === 0) {
+                console.warn(`Linha da tabela não encontrada para o índice ${index}`);
+                return;
+            }
+            $row.find('td[data-field="balance_start_day"]').text(parseFloat(dayData.balance_start_day).toFixed(0));
+            $row.find('td[data-field="balance_end_day"]').text(parseFloat(dayData.balance_end_day).toFixed(0));
+            $row.find('td[data-field="active_buffs_str"]').text(dayData.active_buffs_str ? dayData.active_buffs_str.replace(/,/g, ",\n") : '-');
+            
+            let purchasesHtml = '';
+            if (dayData.manual_purchases) {
+                dayData.manual_purchases.forEach(p => {
+                    purchasesHtml += `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-1 rounded-pill d-block mb-1">${p.name}</span>`;
+                });
+            }
+            $row.find('div[data-field="manual_purchases_display"]').html(purchasesHtml);
+            $row.find('td[data-field="manual_cost_display"]').html(
+                (dayData.manual_cost_total_day && dayData.manual_cost_total_day > 0) ? `(-${parseFloat(dayData.manual_cost_total_day).toFixed(0)})` : ''
+            );
+        });
+         // Re-inicializar tooltips na tabela atualizada, se necessário
+        $('#potentialCalendarTableContainer [data-bs-toggle="tooltip"]').each(function() {
+            if (bootstrap.Tooltip.getInstance(this)) {
+                bootstrap.Tooltip.getInstance(this).dispose();
+            }
+            new bootstrap.Tooltip(this);
+        });
+    }
+    // --- FIM: Lógica para Compra Manual no Calendário Potencial ---
 
 }); // Fim $(document).ready geral
 

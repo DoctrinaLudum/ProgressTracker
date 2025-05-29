@@ -2,7 +2,6 @@
 
 {# --- Funções Macro (Helpers) --- #}
 {% macro render_bounty_card(bounty, config, category) %}
-    {# ... (lógica de nome e imagem) ... #}
     {% set bounty_name_raw = bounty.get('name', 'unknown') %}
     {% set filename_base = bounty_name_raw | lower | replace(' ', '_') %}
     {% set category_folder_map = {
@@ -16,114 +15,108 @@
     {% set current_token_name = config.SEASONAL_TOKEN_NAME %}
     {% set token_reward_amount = bounty.get('items', {}).get(current_token_name, 0) %}
 
-        <div class="card bounty-card h-100 {% if bounty.get('is_bonus_applied') %}border-success{% endif %}"> {# Adiciona borda verde se bônus aplicado #}
+    {# Adicionar a classe 'activity-card' aqui é opcional e pode requerer mais ajustes CSS #}
+    {# Por enquanto, vamos focar nos estilos internos do .bounty-card já existentes #}
+    <div class="card bounty-card h-100 {% if bounty.get('is_bonus_applied') %}border-success{% else %}border-light{% endif %} shadow-sm">
         <div class="card-body text-center d-flex flex-column p-2">
             <img src="{{ url_for('static', filename=img_path_relative) }}"
                  alt="{{ bounty_name_raw | title }}"
                  class="bounty-req-image mb-2"
                  onerror="this.onerror=null; this.src='{{ placeholder_path }}';"
                  loading="lazy">
-            <h6 class="card-title text-center bounty-req-name mb-1 flex-grow-1 fw-semibold">{{ bounty_name_raw | title }}</h6>
+            <h6 class="card-title text-center bounty-req-name mb-1 flex-grow-1"> {# Removido fw-semibold para consistência, pode adicionar de volta se preferir #}
+                {{ bounty_name_raw | title }}
+            </h6>
             
             {% if token_reward_amount > 0 %}
             <p class="bounty-reward text-center small mb-0 mt-auto">
-                <i class="bi bi-ticket-perforated-fill me-1 text-success"></i>
-                {{ token_reward_amount }} {{ current_token_name | title }}
+                {% set bounty_token_icon_filename = 'images/misc/' + current_token_name | lower + '.png' %}
+                <img src="{{ url_for('static', filename=bounty_token_icon_filename) }}" 
+                        alt="{{ current_token_name | title }}" style="width: 14px; height: 14px; vertical-align: text-bottom;" 
+                        class="me-1" onerror="this.style.display='none';"> 
+                    <strong class="currency-ticket">{{ token_reward_amount }} {{ current_token_name | title }}</strong>
             </p>
             {% else %}
-             <p class="bounty-reward text-center small text-muted mb-0 mt-auto">Sem recompensa em {{ current_token_name | title }}</p>
+             <p class="bounty-reward text-center small text-muted mb-0 mt-auto">Sem {{ current_token_name | title }}</p>
             {% endif %}
         </div>
-        {# Adiciona informações de bônus se aplicadas #}
-        {# Informação de bônus individual removida do card, conforme solicitado #}
     </div>
 {% endmacro %}
 {# --- Fim das Macros --- #}
 
-{# ----- Lógica Principal ----- #}
-
-{% set token_name = config.SEASONAL_TOKEN_NAME %} {# Define token_name aqui #}
+{# ----- Lógica Principal (Permanece a mesma) ----- #}
+{# ... (copie o restante do seu _bounties_content.html aqui sem alterações) ... #}
+{% set token_name = config.SEASONAL_TOKEN_NAME %}
 {% set animal_names_heuristic = config.ANIMAL_NAMES_HEURISTIC | default([]) %}
-
-{# Verifica se há dados de bounties categorizadas para exibir #}
 {% set has_bounties_to_display = bounties_data is mapping and bounties_data.categories is mapping and bounties_data.order is iterable %}
 
 {% if has_bounties_to_display %}
     <div class="row g-4">
         {# --- Coluna Esquerda: Mega Bounty Board (Não Animais) --- #}
-        {% set ns_mega_board_col = namespace(total_geniseed=0) %} {# Namespace para o total da coluna esquerda #}
+        {% set ns_mega_board_col = namespace(total_geniseed=0) %}
         <div class="col-lg-6 mb-3">
             <h4 class="text-primary mb-3 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-clipboard-data me-2"></i>Mega Bounty Board</span>
-                <span class="badge bg-success rounded-pill geniseed-total-column" data-total-id="mega-board-column"> {# Badge para o total da coluna #}
-                    <i class="bi bi-ticket-perforated-fill me-1"></i>0 {{ token_name }}
+                <span class="badge bg-primary rounded-pill geniseed-total-column" data-total-id="mega-board-column">
+                    <i class="bi bi-ticket-detailed-fill me-1"></i>0 {{ token_name }}
                 </span>
             </h4>
             
-            {# Itera sobre as categorias na ordem definida pelo backend #}
-            {# Esta coluna mostrará todas as categorias EXCETO as que são puramente de animais #}
             {% set category_order = bounties_data.get('order', []) %}
             {% set categorized_bounties = bounties_data.get('categories', {}) %}
-            {# Namespace para controlar o agrupamento de Mark e Obsidiana e contagem de bounties na coluna #}
             {% set ns = namespace(mark_obsidiana_handled=false, non_animal_bounties_count=0) %}
 
             {% for category_name in category_order %}
-                {# --- Lógica para agrupar Mark e Obsidiana --- #}
                 {% if (category_name == 'Mark' or category_name == 'Obsidiana') and not ns.mark_obsidiana_handled %}
                     {% set mark_items = categorized_bounties.get('Mark', []) %}
                     {% set obsidiana_items = categorized_bounties.get('Obsidiana', []) %}
-
-                    {% set ns_mark_cat = namespace(total_geniseed=0) %} {# Namespace para o total da categoria Mark #}
-                    {% set ns_obsidiana_cat = namespace(total_geniseed=0) %} {# Namespace para o total da categoria Obsidiana #}
+                    {% set ns_mark_cat = namespace(total_geniseed=0) %}
+                    {% set ns_obsidiana_cat = namespace(total_geniseed=0) %}
 
                     {% if mark_items or obsidiana_items %}
-                        <div class="row mb-3 mt-3 g-2"> {# g-2 para espaçamento entre colunas #}
+                        <div class="row mb-3 mt-3 g-2">
                             {% if mark_items %}
-                                <div class="col-md-6"> {# Ocupa metade da largura em telas médias/grandes #}
-                                    <h6 class="text-muted border-bottom pb-1 mb-2 d-flex justify-content-between align-items-center">
-                                        Mark {# Título da categoria #}
-                                        <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="mark-category" data-total-geniseed="0"> {# Badge para o total da categoria #}
-                                            <i class="bi bi-ticket-perforated-fill me-1"></i>0 {{ token_name }}
+                                <div class="col-md-6">
+                                    <h6 class="text-muted border-bottom pb-1 mb-2 mt-3 d-flex justify-content-between align-items-center">
+                                        Mark
+                                        <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="mark-category" data-total-geniseed="0">
+                                            <i class="bi bi-ticket-detailed-fill me-1"></i>0 {{ token_name }}
                                         </span>
                                     </h6>
-                                    <div class="row g-3 bounties-grid"> {# Alteração: Adicionado row e g-3 para espaçamento #}
+                                    <div class="row g-3 bounties-grid">
                                         {% for bounty in mark_items %}
                                             <div class="col">{{ render_bounty_card(bounty, config, 'Mark') }}</div>
-                                            {% set ns.non_animal_bounties_count = ns.non_animal_bounties_count + 1 %} {# Conta bounties para a mensagem final #}
-                                            {% set ns_mark_cat.total_geniseed = ns_mark_cat.total_geniseed + bounty.get('items', {}).get(token_name, 0) %} {# Soma Geniseed para a categoria #}
+                                            {% set ns.non_animal_bounties_count = ns.non_animal_bounties_count + 1 %}
+                                            {% set ns_mark_cat.total_geniseed = ns_mark_cat.total_geniseed + bounty.get('items', {}).get(token_name, 0) %}
                                         {% endfor %}
                                     </div>
-                                    <span class="d-none" data-update-target="mark-category" data-update-value="{{ ns_mark_cat.total_geniseed }}"></span> {# Span oculto para passar o total para JS #}
-                                    {% set ns_mega_board_col.total_geniseed = ns_mega_board_col.total_geniseed + ns_mark_cat.total_geniseed %} {# Soma Geniseed para o total da coluna #}
+                                    <span class="d-none" data-update-target="mark-category" data-update-value="{{ ns_mark_cat.total_geniseed }}"></span>
+                                    {% set ns_mega_board_col.total_geniseed = ns_mega_board_col.total_geniseed + ns_mark_cat.total_geniseed %}
                                 </div>
                             {% endif %}
                             {% if obsidiana_items %}
-                                <div class="col-md-6"> {# Ocupa metade da largura em telas médias/grandes #}
-                                    <h6 class="text-muted border-bottom pb-1 mb-2 d-flex justify-content-between align-items-center">
+                                <div class="col-md-6">
+                                    <h6 class="text-muted border-bottom pb-1 mb-2 mt-3 d-flex justify-content-between align-items-center">
                                         Obsidiana
-                                        <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="obsidiana-category" data-total-geniseed="0"><i class="bi bi-ticket-perforated-fill me-1"></i>0 {{ token_name }}</span> {# Badge para o total da categoria #}
+                                        <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="obsidiana-category" data-total-geniseed="0"><i class="bi bi-ticket-detailed-fill me-1"></i>0 {{ token_name }}</span>
                                     </h6>
-                                    <div class="row g-3 bounties-grid"> {# Alteração: Adicionado row e g-3 para espaçamento #}
+                                    <div class="row g-3 bounties-grid">
                                         {% for bounty in obsidiana_items %}
                                             <div class="col">{{ render_bounty_card(bounty, config, 'Obsidiana') }}</div>
                                             {% set ns.non_animal_bounties_count = ns.non_animal_bounties_count + 1 %}
-                                            {% set ns_obsidiana_cat.total_geniseed = ns_obsidiana_cat.total_geniseed + bounty.get('items', {}).get(token_name, 0) %} {# Soma Geniseed para a categoria #}
+                                            {% set ns_obsidiana_cat.total_geniseed = ns_obsidiana_cat.total_geniseed + bounty.get('items', {}).get(token_name, 0) %}
                                         {% endfor %}
                                     </div>
-                                    <span class="d-none" data-update-target="obsidiana-category" data-update-value="{{ ns_obsidiana_cat.total_geniseed }}"></span> {# Span oculto para passar o total para JS #}
-                                    {% set ns_mega_board_col.total_geniseed = ns_mega_board_col.total_geniseed + ns_obsidiana_cat.total_geniseed %} {# Soma Geniseed para o total da coluna #}
+                                    <span class="d-none" data-update-target="obsidiana-category" data-update-value="{{ ns_obsidiana_cat.total_geniseed }}"></span>
+                                    {% set ns_mega_board_col.total_geniseed = ns_mega_board_col.total_geniseed + ns_obsidiana_cat.total_geniseed %}
                                 </div>
                             {% endif %}
                         </div>
-                        {% set ns.mark_obsidiana_handled = true %} {# Marca como tratado para pular na iteração normal #}
+                        {% set ns.mark_obsidiana_handled = true %}
                     {% endif %}
-
-                {# --- Lógica para outras categorias (Flores, Peixes) e Exotic (não animais) --- #}
                 {% elif category_name != 'Mark' and category_name != 'Obsidiana' %}
                     {% set current_category_bounties = categorized_bounties.get(category_name, []) %}
-                    {% set ns_current_cat = namespace(total_geniseed=0) %} {# Namespace para o total da categoria atual #}
-                    
-                    {# Filtra bounties de animais da categoria 'Exotic' #}
+                    {% set ns_current_cat = namespace(total_geniseed=0) %}
                     {% set bounties_to_display_in_left_col = [] %}
                     {% if category_name == 'Exotic' %}
                         {% for bounty in current_category_bounties %}
@@ -138,48 +131,43 @@
                     {% if bounties_to_display_in_left_col %}
                         <h6 class="text-muted border-bottom pb-1 mb-2 mt-3 d-flex justify-content-between align-items-center">
                             {{ category_name }}
-                            <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="{{ category_name|lower|replace(' ', '-') }}-category" data-total-geniseed="0"><i class="bi bi-ticket-perforated-fill me-1"></i>0 {{ token_name }}</span> {# Badge para o total da categoria #}
+                            <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="{{ category_name|lower|replace(' ', '-') }}-category" data-total-geniseed="0"><i class="bi bi-ticket-detailed-fill me-1"></i>0 {{ token_name }}</span>
                         </h6>
-                        <div class="row g-3 bounties-grid"> {# Alteração: Adicionado row e g-3 para espaçamento #}
+                        <div class="row g-3 bounties-grid">
                             {% for bounty in bounties_to_display_in_left_col %}
                                 <div class="col">{{ render_bounty_card(bounty, config, category_name) }}</div>
                                 {% set ns.non_animal_bounties_count = ns.non_animal_bounties_count + 1 %}
-                                {% set ns_current_cat.total_geniseed = ns_current_cat.total_geniseed + bounty.get('items', {}).get(token_name, 0) %} {# Soma Geniseed para a categoria #}
+                                {% set ns_current_cat.total_geniseed = ns_current_cat.total_geniseed + bounty.get('items', {}).get(token_name, 0) %}
                             {% endfor %}
                         </div>
-                        <span class="d-none" data-update-target="{{ category_name|lower|replace(' ', '-') }}-category" data-update-value="{{ ns_current_cat.total_geniseed }}"></span> {# Span oculto para passar o total para JS #}
-                        {% set ns_mega_board_col.total_geniseed = ns_mega_board_col.total_geniseed + ns_current_cat.total_geniseed %} {# Soma Geniseed para o total da coluna #}
-
+                        <span class="d-none" data-update-target="{{ category_name|lower|replace(' ', '-') }}-category" data-update-value="{{ ns_current_cat.total_geniseed }}"></span>
+                        {% set ns_mega_board_col.total_geniseed = ns_mega_board_col.total_geniseed + ns_current_cat.total_geniseed %}
                     {% endif %}
                 {% endif %}
             {% endfor %}
            
-            {# Mensagem se nenhuma bounty do Mega Board (não animal/exotic) for encontrada #}
-            {% if ns.non_animal_bounties_count == 0 %} {# Verifica a contagem total de bounties não animais renderizadas #}
+            {% if ns.non_animal_bounties_count == 0 %}
                 <div class="alert alert-light small" role="alert">Nenhuma tarefa do Mega Board com recompensa em {{ token_name }} encontrada.</div>
             {% endif %}
-            <span class="d-none" data-update-target="mega-board-column" data-update-value="{{ ns_mega_board_col.total_geniseed }}"></span> {# Span oculto para passar o total da coluna para JS #}
+            <span class="d-none" data-update-target="mega-board-column" data-update-value="{{ ns_mega_board_col.total_geniseed }}"></span>
         </div>
-        {# --- Fim Coluna Esquerda --- #}
 
-        {# --- Coluna Direita: Bounties (Animais) --- #} {# Título corrigido #}
+        {# --- Coluna Direita: Bounties (Animais) --- #}
         {% set ns_animal_col = namespace(total_geniseed_coluna=0) %}
         <div class="col-lg-6 mb-3">
             <h4 class="text-success mb-3 d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-piggy-bank me-2"></i>Bounties (Animais)</span>
-                <span class="badge bg-success rounded-pill geniseed-total-column" data-total-id="animais-column"> {# Badge para o total da coluna #}
-                    <i class="bi bi-ticket-perforated-fill me-1"></i>0 {{ token_name }}
+                <span class="badge bg-success rounded-pill geniseed-total-column" data-total-id="animais-column">
+                    <i class="bi bi-ticket-detailed-fill me-1"></i>0 {{ token_name }}
                 </span>
             </h4>
             
-            {# Coleta todas as bounties de animais de todas as categorias #}
             {% set all_animal_bounties = [] %}
             {% if bounties_data is mapping and bounties_data.categories is mapping %}
                 {% for cat_name, bounties_in_cat in bounties_data.categories.items() %}
                     {% for bounty in bounties_in_cat %}
-                        {# Adiciona verificação para recompensa em Geniseed #}
                         {% if bounty.get('name') in animal_names_heuristic and bounty.get('items', {}).get(token_name, 0) > 0 %}
-                            {% set _ = all_animal_bounties.append(bounty) %} {# Coleta apenas bounties de animais com Geniseed #}
+                            {% set _ = all_animal_bounties.append(bounty) %}
                             {% set ns_animal_col.total_geniseed_coluna = ns_animal_col.total_geniseed_coluna + bounty.get('items', {}).get(token_name, 0) %}
                         {% endif %}
                     {% endfor %}
@@ -187,13 +175,12 @@
             {% endif %}
 
             {% if all_animal_bounties %}
-                {# Agrupa as bounties de animais por espécie para exibição #}
                 {% set animal_species_order = config.ANIMAL_NAMES_HEURISTIC | default([]) %}
                 {% set categorized_animal_bounties = {} %}
                 {% for species in animal_species_order %}
                     {% set _ = categorized_animal_bounties.update({species: []}) %}
                 {% endfor %}
-                {% set _ = categorized_animal_bounties.update({'Outros Animais': []}) %} {# Categoria fallback #}
+                {% set _ = categorized_animal_bounties.update({'Outros Animais': []}) %}
 
                 {% for bounty in all_animal_bounties %}
                     {% set species = bounty.get('name') %}
@@ -204,35 +191,30 @@
                     {% endif %}
                 {% endfor %}
 
-                {# Exibe as categorias de animais #}
                 {% for species, bounties in categorized_animal_bounties.items() %}
-                    {% set ns_current_species = namespace(total_geniseed=0) %} {# Namespace para o total da espécie atual #}
+                    {% set ns_current_species = namespace(total_geniseed=0) %}
                     {% if bounties %}
                         <h6 class="text-muted border-bottom pb-1 mb-2 mt-3 d-flex justify-content-between align-items-center">
                             {{ species | title }}
-                            <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="{{ species|lower|replace(' ', '-') }}-species" data-total-geniseed="0"><i class="bi bi-ticket-perforated-fill me-1"></i>0 {{ token_name }}</span> {# Badge para o total da espécie #}
+                            <span class="badge bg-secondary rounded-pill geniseed-total-category" data-category-id="{{ species|lower|replace(' ', '-') }}-species" data-total-geniseed="0"><i class="bi bi-ticket-detailed-fill me-1"></i>0 {{ token_name }}</span>
                         </h6>
-                        <div class="row g-3 bounties-grid"> {# Alteração: Adicionado row e g-3 para espaçamento #}
+                        <div class="row g-3 bounties-grid">
                             {% for bounty in bounties %}
-                                <div class="col">{{ render_bounty_card(bounty, config, 'Animais') }}</div> {# Passa 'Animais' como categoria para o macro #}
-                                {% set ns_current_species.total_geniseed = ns_current_species.total_geniseed + bounty.get('items', {}).get(token_name, 0) %} {# Soma Geniseed para a espécie #}
+                                <div class="col">{{ render_bounty_card(bounty, config, 'Animais') }}</div>
+                                {% set ns_current_species.total_geniseed = ns_current_species.total_geniseed + bounty.get('items', {}).get(token_name, 0) %}
                             {% endfor %}
-                        </div> {# Fim de .bounties-grid #}
-                        <span class="d-none" data-update-target="{{ species|lower|replace(' ', '-') }}-species" data-update-value="{{ ns_current_species.total_geniseed }}"></span> {# Span oculto para passar o total para JS #}
-                        {# O total da coluna ns_animal_col já foi calculado ao coletar all_animal_bounties #}
-                    {% endif %} {# Fim do if bounties #}
-                {% endfor %} {# Fim do loop por species #}
-                {# A mensagem "Nenhuma tarefa de animal..." já é tratada pelo if all_animal_bounties #}
+                        </div>
+                        <span class="d-none" data-update-target="{{ species|lower|replace(' ', '-') }}-species" data-update-value="{{ ns_current_species.total_geniseed }}"></span>
+                    {% endif %}
+                {% endfor %}
             {% else %}
                 <div class="alert alert-light small" role="alert">Nenhuma tarefa de animal com recompensa em {{ token_name }} encontrada.</div>
             {% endif %}
             <span class="d-none" data-update-target="animais-column" data-update-value="{{ ns_animal_col.total_geniseed_coluna }}"></span>
         </div>
-        {# --- Fim Coluna Direita --- #}
     </div>
 
 {% else %}
-    {# Mensagem se não houver NENHUMA bounty com recompensa em token #}
     {% if farm_id_submitted %}
         <div class="alert alert-light" role="alert">Nenhuma tarefa com recompensa em {{ token_name }} encontrada para esta fazenda.</div>
     {% else %}
@@ -240,33 +222,25 @@
     {% endif %}
 {% endif %}
 
-{# Passa o nome do token para JavaScript de forma segura e script para atualizar totais #}
-<span id="seasonal-token-name-data" data-token-name="{{ token_name }}" class="d-none"></span> {# Elemento oculto para passar o token_name #}
+<span id="seasonal-token-name-data" data-token-name="{{ token_name }}" class="d-none"></span>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const tokenNameElement = document.getElementById('seasonal-token-name-data');
-        const seasonalTokenNameForJS = tokenNameElement ? tokenNameElement.dataset.tokenName : 'Token'; // Fallback se não encontrar
-
-        
-        // Função auxiliar para encontrar o badge correspondente e atualizá-lo
+        const seasonalTokenNameForJS = tokenNameElement ? tokenNameElement.dataset.tokenName : 'Token';
         const updateBadge = (targetId, totalValue) => {
-            // Tenta encontrar o badge da categoria/espécie
             let badgeElement = document.querySelector(`.geniseed-total-category[data-category-id="${targetId}"]`);
             if (!badgeElement) {
-                // Se não encontrar, tenta encontrar o badge da coluna
                  badgeElement = document.querySelector(`.geniseed-total-column[data-total-id="${targetId}"]`);
             }
             if (badgeElement) {
-                 badgeElement.innerHTML = `<i class="bi bi-ticket-perforated-fill me-1"></i>${totalValue} ${seasonalTokenNameForJS}`;
+                 badgeElement.innerHTML = `<i class="bi bi-ticket-detailed-fill me-1"></i>${totalValue} ${seasonalTokenNameForJS}`;
             }
         };
-
-        // Encontra todos os spans ocultos que contêm os totais calculados pelo Jinja
         document.querySelectorAll('span[data-update-target][data-update-value]').forEach(spanElement => {
-            const targetId = spanElement.dataset.updateTarget; // Ex: "mark-category", "mega-board-column"
-            const totalValue = parseInt(spanElement.dataset.updateValue, 10); // O total calculado pelo Jinja
-            updateBadge(targetId, totalValue); // Chama a função para encontrar e atualizar o badge
-                });
+            const targetId = spanElement.dataset.updateTarget;
+            const totalValue = parseInt(spanElement.dataset.updateValue, 10);
+            updateBadge(targetId, totalValue);
+        });
     });
 </script>
