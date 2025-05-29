@@ -315,80 +315,7 @@ h3.text-success {
 
 
 /* ==========================================================================
-   9. ESTILOS DA ABA CALENDARIO (Potential Season Calendar)
-   ========================================================================== */
-/* ... (seus estilos de calendário permanecem os mesmos) ... */
-.calendar-table th,
-.calendar-table td {
-    text-align: center; 
-    vertical-align: middle; 
-}
-.calendar-table .calendar-date-col {
-    white-space: nowrap; 
-    text-align: left; 
-    padding-left: 0.5rem !important; 
-}
-.calendar-table th.calendar-date-col { 
-    text-align: left;
-}
-.calendar-table .calendar-purchases-col .badge {
-    display: block; 
-    margin-bottom: 0.25rem; 
-    text-align: center; 
-}
-.calendar-table .calendar-purchases-col .badge:last-child {
-    margin-bottom: 0; 
-}
-.calendar-table td:has(span.text-danger.d-block) { 
-    padding-top: 0.25rem; 
-    padding-bottom: 0.25rem;
-}
-.calendar-table td span.text-danger.d-block {
-     margin-bottom: 0.25rem; 
-}
-.calendar-table td span.text-danger.d-block:last-child {
-     margin-bottom: 0;
-}
-#potential-calendar-tab-pane .table-bordered th,
-#potential-calendar-tab-pane .table-bordered td {
-    border-color: #dee2e6; 
-}
-#potential-calendar-tab-pane .table thead.table-dark th {
-    background-color: #212529; 
-    border-color: #32383e; 
-}
-#potential-calendar-tab-pane .badge { 
-    font-size: 0.7rem;    
-    padding: 0.3em 0.55em; 
-    font-weight: 500;     
-}
-#potential-calendar-tab-pane [data-bs-toggle="tooltip"] {
-    cursor: help;
-}
-.calendar-table .calendar-buffs-col {
-    min-width: 130px; 
-    white-space: pre-wrap; 
-    text-align: left; 
-}
-.calendar-table tr.week-even td {
-    background-color: #d7f7de;
-}
-.calendar-table tr.week-odd td {
-    background-color: #ffffff;
-}
-.calendar-table tr.week-even:hover td,
-.calendar-table tr.week-odd:hover td {
-    background-color: #e9ecef; 
-}
-.calendar-table tr.highlight-purchase-day.week-even td {
-    background-color: #eef3f5; 
-}
-.calendar-table tr.highlight-purchase-day.week-odd td {
-    background-color: #f0f8ff; 
-}
-
-/* ==========================================================================
-   10. ESTILOS DE SUB-ABAS
+   9. ESTILOS DE SUB-ABAS
    ========================================================================== */
 /* ... (seus estilos de sub-abas permanecem os mesmos) ... */
 #token-sources-main-tab-pane .nav-pills {
@@ -431,7 +358,7 @@ h3.text-success {
 }
 
 /* ==========================================================================
-   11. ESTILOS BOTÃO VOLTAR AO TOPO
+   10. ESTILOS BOTÃO VOLTAR AO TOPO
    ========================================================================== */
 /* ... (seus estilos do botão voltar ao topo permanecem os mesmos) ... */
 #scrollTopBtn {
@@ -459,7 +386,7 @@ h3.text-success {
 }
 
 /* ==========================================================================
-   12. ESTILOS PARA CARD DE IDENTIFICAÇÃO E STATS (ATUALIZADO)
+   11. ESTILOS PARA CARD DE IDENTIFICAÇÃO E STATS (ATUALIZADO)
    ========================================================================== */
 /* ... (os estilos do card de identificação que ajustamos permanecem aqui) ... */
 .farm-identification-card .card-body {
@@ -591,7 +518,7 @@ h3.text-success {
 }
 
 /* ==========================================================================
-   13. ESTILOS PARA CARDS DE ENTREGAS (SUB-ABA "FONTES DE TOKENS") - (JÁ FORNECIDO ANTERIORMENTE)
+   12. ESTILOS PARA CARDS DE ENTREGAS (SUB-ABA "FONTES DE TOKENS") - (JÁ FORNECIDO ANTERIORMENTE)
    ========================================================================== */
 .delivery-npc-card .card-header .badge { /* Se você adicionar a classe delivery-npc-card ao card de entrega */
     font-size: 0.7em; 

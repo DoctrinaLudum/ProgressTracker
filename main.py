@@ -9,7 +9,6 @@ import analysis
 import config
 import database_utils
 import route_helpers
-import season_calendar_simulator
 from bumpkin_utils import gerar_url_imagem_bumpkin, load_item_ids
 from sunflower_api import get_farm_data_full
 
@@ -31,15 +30,8 @@ GLOBAL_SHOP_ITEMS_TICKETS = {
     nome: dados for nome, dados in GLOBAL_SHOP_ITEMS.items() if dados.get('currency') == 'ticket'
 }
 TAXA_MEDIA_DIARIA_PLACEHOLDER = 10.0
-log.info("Gerando calendário potencial da temporada...")
-try:
-    GLOBAL_POTENTIAL_CALENDAR_DATA = season_calendar_simulator.generate_max_potential_season_calendar() #
-    GLOBAL_SIM_BUFF_PRIORITY_LIST = season_calendar_simulator.SIM_BUFF_ITEM_PURCHASE_PRIORITY
-    log.info("Calendário potencial e dados globais inicializados.")
-except Exception as e_global:
-    log.exception(f"Erro ao inicializar dados globais (calendário): {e_global}")
-    GLOBAL_POTENTIAL_CALENDAR_DATA = []
-    GLOBAL_SIM_BUFF_PRIORITY_LIST = []
+log.info("Dados globais inicializados.")
+
 
 
 # --- Rota de Health Check ---
@@ -76,9 +68,7 @@ def index():
         "shop_items_ticket": GLOBAL_SHOP_ITEMS_TICKETS,
         "avg_daily_rate": TAXA_MEDIA_DIARIA_PLACEHOLDER,
         "avg_daily_rate_status": 'placeholder',
-        "app_version": GLOBAL_APP_VERSION,
-        "potential_calendar": GLOBAL_POTENTIAL_CALENDAR_DATA,
-        "sim_buff_item_purchase_priority": GLOBAL_SIM_BUFF_PRIORITY_LIST
+        "app_version": GLOBAL_APP_VERSION
     }
 
     if request.method == 'POST':
@@ -145,29 +135,6 @@ def index():
         context["avg_daily_rate_status"] = 'aguardando_dados'
     elif not context.get("farm_id_submitted"):
         context["avg_daily_rate_status"] = 'nao_calculado_ainda'
-
-    # --- Preparar shop_items_for_calendar_purchase ---
-    # Esta lista conterá itens da loja que custam o token sazonal,
-    # para serem usados na funcionalidade de compra manual do calendário.
-    shop_items_for_calendar_purchase = []
-    if GLOBAL_SHOP_ITEMS and config.SEASONAL_TOKEN_NAME:
-        for item_name, item_data in GLOBAL_SHOP_ITEMS.items():
-            # Considerar apenas itens que custam o token sazonal
-            if item_data.get("currency") == config.SEASONAL_TOKEN_NAME:
-                buff_id = None
-                # Tentar encontrar o buff_id correspondente se o item for um buff
-                if hasattr(config, 'SEASONAL_DELIVERY_BUFFS') and isinstance(config.SEASONAL_DELIVERY_BUFFS, dict):
-                    for buff_key, buff_info in config.SEASONAL_DELIVERY_BUFFS.items():
-                        if isinstance(buff_info, dict) and buff_info.get("shop_item_name") == item_name:
-                            buff_id = buff_key
-                            break
-                shop_items_for_calendar_purchase.append({
-                    "name": item_name,
-                    "cost": item_data.get("cost"),
-                    "currency": item_data.get("currency"), # Deve ser config.SEASONAL_TOKEN_NAME
-                    "buff_id": buff_id
-                })
-    context["shop_items_for_calendar_purchase"] = shop_items_for_calendar_purchase
 
     # --- Logs Resumidos ---
     log.info(f"Renderizando para Farm ID: {context.get('farm_id_submitted', 'Nenhum')}. Taxa: {context.get('avg_daily_rate', TAXA_MEDIA_DIARIA_PLACEHOLDER):.1f} ({context.get('avg_daily_rate_status', 'N/A')})")
@@ -241,41 +208,6 @@ def calculate_projection():
     except Exception as e:
         log.exception(f"Erro inesperado durante cálculo da projeção AJAX para {item_name}: {e}")
         return jsonify({"success": False, "error": "Erro interno ao calcular a projeção."}), 500
-
-# --- Rota AJAX para Simular Calendário Customizado ---
-@app.route('/simulate_custom_calendar', methods=['POST'])
-def simulate_custom_calendar_route():
-    # ... (código existente, sem alterações) ...
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "error": "Requisição inválida."}), 400
-        user_selected_buffs = data.get('selected_buffs', [])
-        log.info(f"Recebida requisição para /simulate_custom_calendar com buffs: {user_selected_buffs}")
-        custom_calendar_data = season_calendar_simulator.generate_custom_season_calendar(
-            user_selected_buff_names=user_selected_buffs
-        )
-        if custom_calendar_data is not None:
-            return jsonify({
-                "success": True,
-                "potential_calendar": custom_calendar_data,
-                "sim_buff_item_purchase_priority": GLOBAL_SIM_BUFF_PRIORITY_LIST,
-                "config": {
-                    "SEASONAL_TOKEN_NAME": GLOBAL_SEASONAL_TOKEN_NAME,
-                    "SEASONAL_DELIVERY_BUFFS": getattr(config, 'SEASONAL_DELIVERY_BUFFS', {}),
-                    "DATE_ACTIVITIES_START_YIELDING_TOKENS": getattr(config, 'DATE_ACTIVITIES_START_YIELDING_TOKENS', None),
-                    "DOUBLE_DELIVERY_DATE": getattr(config, 'DOUBLE_DELIVERY_DATE', None),
-                    "DOUBLE_DELIVERY_INTERVAL_DAYS": getattr(config, 'DOUBLE_DELIVERY_INTERVAL_DAYS', None),
-                    "SIM_IDEAL_PLAYER_HAS_VIP": getattr(config, 'SIM_IDEAL_PLAYER_HAS_VIP', True),
-                    "SIM_IDEAL_PLAYER_ACHIEVES_MEGA_BOUNTY_BONUS": getattr(config, 'SIM_IDEAL_PLAYER_ACHIEVES_MEGA_BOUNTY_BONUS', True)
-                }
-            })
-        else:
-            log.error("Falha ao gerar calendário customizado a partir da rota (retorno None).")
-            return jsonify({"success": False, "error": "Falha ao gerar calendário customizado no servidor."}), 500
-    except Exception as e:
-        log.exception("Erro na rota /simulate_custom_calendar:")
-        return jsonify({"success": False, "error": f"Erro interno do servidor: {str(e)}"}), 500
 
 # --- Bloco de Execução Principal ---
 if __name__ == '__main__':

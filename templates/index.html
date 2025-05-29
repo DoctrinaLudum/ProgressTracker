@@ -99,15 +99,6 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-3 col-md-6 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body">
-                        <i class="bi bi-calendar-check-fill display-4 text-success mb-3"></i>
-                        <h5 class="card-title">Potencial da Temporada</h5>
-                        <p class="card-text small">Descubra o máximo de tokens que você pode ganhar com nosso calendário de simulação avançado.</p>
-                    </div>
-                </div>
-            </div>
         </div>
         {# --- FIM DA NOVA SEÇÃO --- #}
 
@@ -217,11 +208,6 @@
                        <i class="bi bi-moisture me-1"></i> Fontes de Tokens
                     </button>
                 </li>
-                <li class="nav-item" role="presentation">
-                   <button class="nav-link" id="potential-calendar-tab" data-bs-toggle="tab" data-bs-target="#potential-calendar-tab-pane" type="button" role="tab" aria-controls="potential-calendar-tab-pane" aria-selected="false">
-                       <i class="bi bi-calendar-event me-1"></i> Potencial da Temporada
-                    </button>
-                </li>
             </ul>
 
             <div class="tab-content pt-3" id="analysisTabsContent">
@@ -265,11 +251,6 @@
                             {% include '_chores_content.html' %}
                         </div>
                     </div>
-                </div>
-
-                {# Painel Calendário Potencial #}
-                <div class="tab-pane fade" id="potential-calendar-tab-pane" role="tabpanel" aria-labelledby="potential-calendar-tab" tabindex="0">
-                   {% include '_season_potential_calendar.html' with context %}
                 </div>
             </div>
             {# --- Fim da Estrutura de Abas --- #}
