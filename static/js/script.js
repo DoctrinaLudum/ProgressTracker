@@ -441,38 +441,73 @@ $(document).ready(function() {
         }),
         dataType: 'json',
         success: function(detailsResponse) {
-            console.log("[JS-SIM-DETAILS] Resposta de detalhes da compra:", detailsResponse); // LOG ADICIONAL
-            if (detailsResponse.success) {
-                const { total_cost, currency, tier, unlock_cost, unlock_items_details } = detailsResponse;
-                const tokenNameForMsg = detailsResponse.token_name || (typeof window.GLOBAL_SEASONAL_TOKEN_NAME !== 'undefined' ? window.GLOBAL_SEASONAL_TOKEN_NAME : 'Tickets');
-                
-                const custoRealParaExibicao = total_cost === null || total_cost === Infinity ? "N/A (Impossível)" : total_cost;
-                let confirmMsg = `Simular compra de "${itemData.name}" (Tier ${tier || 'N/A'}) por ${custoRealParaExibicao} ${currency ? currency.toUpperCase() : '?'} no dia ${targetDate}?`;
-                
-                if (currency === 'ticket' && unlock_cost > 0 && unlock_items_details && unlock_items_details.length > 0) {
-                    confirmMsg += `\n\nCusto de Desbloqueio (${tokenNameForMsg}): ${unlock_cost}.`;
-                    const unlockItemNamesAndCosts = unlock_items_details.map(i => `${i.name} (${i.cost}${tokenNameForMsg.substring(0,1)})`).join(', ');
-                    if (unlockItemNamesAndCosts) {
-                        confirmMsg += `\nItens de ${tokenNameForMsg} para desbloqueio: ${unlockItemNamesAndCosts}`;
-                    }
-                } else if (currency === 'ticket' && unlock_cost === 0 && tier > 1 && total_cost !== null && total_cost !== Infinity) {
-                    confirmMsg += `\n\n(Desbloqueio de tier já satisfeito por outros itens adquiridos).`;
-                }
+        console.log("[JS-SIM-DETAILS] Resposta de detalhes da compra:", detailsResponse);
+        if (detailsResponse.success) {
+            const { item_name, total_cost, currency, tier, unlock_cost, unlock_items_details, token_name } = detailsResponse;
+            // total_cost aqui será o custo na moeda do item, ou o custo total em tickets se o item for de ticket.
+            // unlock_cost é o custo de desbloqueio APENAS EM TICKETS.
 
-                if (confirm(confirmMsg)) {
-                    const buffKey = itemData.buff_source_key || getBuffSourceKeyForItem(itemData.name); // getBuffSourceKeyForItem deve estar definida
-                    
-                    let novasComprasParaAdicionar = [];
-                    novasComprasParaAdicionar.push({
-                        name: itemData.name,
-                        data_compra: targetDate,
-                        custo_real_gasto: (currency === 'ticket' ? total_cost : 0),
-                        buff_source_key: buffKey
+            let displayCost = total_cost === null ? "N/A" : total_cost;
+            let displayCurrency = currency ? currency.toUpperCase() : '?';
+            if (currency === 'ticket' && total_cost === null) {
+                displayCost = "Impossível/N/A"; // Se for ticket e o custo for null (ex: impossível desbloquear)
+            }
+
+
+            let confirmMsg = `Simular aquisição de "${item_name}" (Tier ${tier || 'N/A'})`;
+            if (currency === 'ticket') { // Item é de ticket
+                confirmMsg += ` por um custo total estimado de ${displayCost} ${token_name}?`;
+                if (unlock_cost !== null && unlock_cost > 0 && unlock_items_details && unlock_items_details.length > 0) {
+                    // MODIFICAÇÃO AQUI para formatar corretamente a lista de itens
+                    const unlockItemsStrings = unlock_items_details.map(itemDetail => {
+                        return `<span class="math-inline">\{itemDetail\.name\} \(</span>{itemDetail.cost}${token_name.substring(0,1)})`; // Ex: "Embersteel Suit (50G)"
                     });
+                    const unlockItemNamesAndCosts = unlockItemsStrings.join(', '); // Junta com vírgula
 
-                    if (currency === 'ticket' && unlock_items_details && unlock_items_details.length > 0) {
-                        unlock_items_details.forEach(unlockItem => {
-                            if (unlockItem.name !== itemData.name && 
+                    if (unlockItemNamesAndCosts) {
+                        confirmMsg += `\n\nItens de ${token_name} para desbloqueio incluídos no custo: ${unlockItemNamesAndCosts}.`;
+                    }
+                } else if (unlock_cost === 0 && tier > 1 && total_cost !== null) {
+                    confirmMsg += `\n\n(Desbloqueio de tier já satisfeito ou item é T1).`;
+                }
+            }
+
+            // Adicionar uma nota se o custo for N/A, mesmo para itens não-ticket (se total_cost for null)
+            if (total_cost === null && currency !== 'ticket') {
+                confirmMsg += `\n(Nota: O custo de aquisição deste item não pôde ser determinado, mas ele não usa ${token_name}.)`;
+            }
+
+
+            if (confirm(confirmMsg)) {
+                const buffKey = itemData.buff_source_key || getBuffSourceKeyForItem(itemData.name);
+
+                let novasComprasParaAdicionar = [];
+
+                // Adiciona o item principal que foi arrastado
+                novasComprasParaAdicionar.push({
+                    name: item_name, // Usar item_name da detailsResponse
+                    data_compra: targetDate,
+                    // custo_real_gasto é o valor que será DEBITADO do saldo de tickets.
+                    // Se o item não é de ticket, seu custo em tickets é 0.
+                    custo_real_gasto: (currency === 'ticket' && total_cost !== null) ? total_cost : 0,
+                    buff_source_key: buffKey 
+                });
+
+                // Adiciona os itens de DESBLOQUEIO APENAS SE o item principal NÃO for de ticket,
+                // OU se o item principal FOR de ticket e os itens de desbloqueio já estão incluídos no seu 'total_cost'.
+                // A lógica atual no backend (calcular_custo_total_item) já retorna 'unlock_items_details'
+                // que são os itens de TICKET usados para o desbloqueio.
+                // Estes já tiveram seu custo somado ao 'total_cost' se o item principal é de ticket.
+                // Se o item principal NÃO é de ticket, mas o usuário quer simular a sua aquisição
+                // e isso implica em desbloquear o tier com itens de ticket, esses itens de desbloqueio
+                // devem ser adicionados separadamente à simulação com seus respectivos custos em tickets.
+
+                if (currency !== 'ticket' && unlock_items_details && unlock_items_details.length > 0 && unlock_cost !== null && unlock_cost > 0) {
+                    console.log(`[JS-SIM] Item alvo '${item_name}' não é de ticket. Adicionando ${unlock_items_details.length} itens de desbloqueio (custo total tickets: ${unlock_cost}) à simulação.`);
+                    unlock_items_details.forEach(unlockItem => {
+                        if (unlockItem.currency === 'ticket' && unlockItem.cost > 0) { // Garantir que só adicionamos itens de ticket com custo > 0
+                            // Evitar adicionar o próprio item alvo novamente se ele aparecer na lista de desbloqueio (improvável)
+                            if (unlockItem.name !== item_name && 
                                 !comprasSimuladasPeloUsuarioJS.some(c => c.name === unlockItem.name && c.data_compra === targetDate)) {
                                 novasComprasParaAdicionar.push({
                                     name: unlockItem.name,
@@ -480,41 +515,68 @@ $(document).ready(function() {
                                     custo_real_gasto: unlockItem.cost, 
                                     buff_source_key: getBuffSourceKeyForItem(unlockItem.name)
                                 });
+                                console.log(`[JS-SIM]  -> Adicionando item de desbloqueio: ${unlockItem.name}, Custo: ${unlockItem.cost}T`);
                             }
-                        });
-                    }
-                    
-                    novasComprasParaAdicionar.forEach(novaCompra => {
-                        const compraExistenteIndex = comprasSimuladasPeloUsuarioJS.findIndex(
-                            c => c.name === novaCompra.name && c.data_compra === novaCompra.data_compra
-                        );
-                        if (compraExistenteIndex === -1) {
-                            comprasSimuladasPeloUsuarioJS.push(novaCompra);
-                        } else {
-                            // Se já existe (improvável para o mesmo item no mesmo dia, mas por segurança)
-                            // Poderia atualizar se necessário, mas por agora, evitamos duplicatas simples.
-                            // Se a lógica de "compra" permitir substituir, aqui seria o lugar.
-                            console.warn(`[JS-SIM] Tentativa de adicionar compra duplicada no mesmo dia: ${novaCompra.name} em ${novaCompra.data_compra}. Ignorando.`);
                         }
                     });
-                    
-                    comprasSimuladasPeloUsuarioJS.sort((a, b) => new Date(a.data_compra) - new Date(b.data_compra));
-
-                    $('#load-calendar-btn').trigger('click');
-                } else {
-                    // console.log("[JS-SIM] Compra cancelada pelo usuário.");
+                } else if (currency === 'ticket' && unlock_items_details && unlock_items_details.length > 0 && unlock_cost !== null && unlock_cost > 0) {
+                    // Se o item principal é de TICKET, os itens de desbloqueio em 'unlock_items_details' JÁ compõem o 'total_cost' do item principal.
+                    // Eles são importantes para a simulação para que o backend saiba que foram "adquiridos" para fins de desbloqueio de tiers futuros,
+                    // mas seu custo individual não deve ser debitado NOVAMENTE.
+                    // Apenas precisamos garantir que eles sejam registrados como "comprados" para o cálculo de desbloqueio de itens subsequentes.
+                    // O 'custo_real_gasto' deles aqui deve ser 0 para não serem duplamente contados no débito.
+                    // No entanto, eles precisam ser adicionados a `comprasSimuladasPeloUsuarioJS` para que `previously_purchased_item_names`
+                    // no backend esteja correto para futuras chamadas a `calculate_purchase_details_for_calendar`.
+                    console.log(`[JS-SIM] Item alvo '${item_name}' é de ticket. Itens de desbloqueio (custo já incluso no total): ${unlock_items_details.length}`);
+                    unlock_items_details.forEach(unlockItem => {
+                        if (unlockItem.name !== item_name && 
+                            !comprasSimuladasPeloUsuarioJS.some(c => c.name === unlockItem.name && c.data_compra === targetDate)) {
+                            novasComprasParaAdicionar.push({
+                                name: unlockItem.name,
+                                data_compra: targetDate, 
+                                custo_real_gasto: 0, // Custo já contabilizado no item principal
+                                buff_source_key: getBuffSourceKeyForItem(unlockItem.name) // Adiciona buff se houver
+                            });
+                            console.log(`[JS-SIM]  -> Registrando item de desbloqueio (sem custo adicional debitado): ${unlockItem.name}`);
+                        }
+                    });
                 }
+
+                // Adiciona as novas compras à lista global
+                novasComprasParaAdicionar.forEach(novaCompra => {
+                    const compraExistenteIndex = comprasSimuladasPeloUsuarioJS.findIndex(
+                        c => c.name === novaCompra.name && c.data_compra === novaCompra.data_compra
+                    );
+                    if (compraExistenteIndex === -1) {
+                        comprasSimuladasPeloUsuarioJS.push(novaCompra);
+                    } else {
+                        console.warn(`[JS-SIM] Tentativa de adicionar compra duplicada no mesmo dia: ${novaCompra.name} em ${novaCompra.data_compra}. Substituindo/Atualizando.`);
+                        // Se precisar atualizar (ex: se o custo mudou ou buff_source_key), pode fazer aqui:
+                        // comprasSimuladasPeloUsuarioJS[compraExistenteIndex] = novaCompra;
+                        // Por ora, vamos manter a primeira ocorrência ou a mais recente, dependendo da necessidade.
+                        // Para simplificar, se já existe, não faz nada, assumindo que a primeira simulação para aquele item/data é a válida.
+                        // Ou, se a intenção é permitir "re-simular" um item para uma data, a lógica de atualização seria aqui.
+                        // Dado o fluxo, é mais provável que queiramos evitar duplicatas exatas.
+                    }
+                });
+
+                comprasSimuladasPeloUsuarioJS.sort((a, b) => new Date(a.data_compra) - new Date(b.data_compra));
+                console.log("[JS-SIM] Lista de compras simuladas atualizada:", comprasSimuladasPeloUsuarioJS);
+                $('#load-calendar-btn').trigger('click'); // Recarrega o calendário
             } else {
-                    let errorMsg = "[JS-SIM-DETAILS] Resposta de detalhes não foi sucesso";
-                    if(detailsResponse && detailsResponse.error) errorMsg += ": " + detailsResponse.error;
-                    console.error(errorMsg, detailsResponse);
-                    alert(`Erro ao obter detalhes da compra: ${ (detailsResponse && detailsResponse.error) || 'Resposta inválida do servidor.'}`);
+                // console.log("[JS-SIM] Compra cancelada pelo usuário.");
             }
-        },
-        error: function(jqXHR, textStatus, errorThrown) { // LOG ADICIONAL
-            console.error("[JS-SIM-DETAILS] Erro AJAX em detalhes da compra:", textStatus, errorThrown, jqXHR.status, jqXHR.responseText);
-            alert("Erro de comunicação (ver console) ao tentar obter detalhes da compra. Tente novamente.");
+        } else {
+            let errorMsg = "[JS-SIM-DETAILS] Resposta de detalhes não foi sucesso";
+            if(detailsResponse && detailsResponse.error) errorMsg += ": " + detailsResponse.error;
+            console.error(errorMsg, detailsResponse);
+            alert(`Erro ao obter detalhes da compra: ${ (detailsResponse && detailsResponse.error) || 'Resposta inválida do servidor.'}`);
         }
+    },
+    error: function(jqXHR, textStatus, errorThrown) {
+        console.error("[JS-SIM-DETAILS] Erro AJAX em detalhes da compra:", textStatus, errorThrown, jqXHR.status, jqXHR.responseText);
+        alert("Erro de comunicação (ver console) ao tentar obter detalhes da compra. Tente novamente.");
+    }
     });
     }
 }); // Fim $(document).ready geral

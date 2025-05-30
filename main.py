@@ -273,55 +273,47 @@ def calculate_purchase_details_for_calendar():
         return jsonify({"success": False, "error": "Nome do item não fornecido."}), 400
 
     item_name = data.get('item_name')
-    # ALTERADO PARA previously_purchased_item_names para corresponder ao JS
-    previously_purchased_item_names = data.get('previously_purchased_item_names', []) 
+    previously_purchased_item_names = data.get('previously_purchased_item_names', [])
 
     item_shop_data = GLOBAL_SHOP_ITEMS.get(item_name)
     if not item_shop_data:
         return jsonify({"success": False, "error": f"Item '{item_name}' não encontrado na loja."}), 404
 
-    # ... (resto da lógica como antes, usando previously_purchased_item_names
-    #      para chamar analysis.calcular_custo_total_item)
     moeda = item_shop_data.get('currency')
     tier = item_shop_data.get('tier')
-    custo_total_real_para_o_item = item_shop_data.get('cost') # Custo base do item
-    custo_desbloqueio_em_tickets = 0
-    itens_necessarios_para_desbloqueio_com_custo = []
 
-    # O custo total real só é recalculado com desbloqueio se o item alvo for de ticket.
-    # Se for de SFL, o custo é o custo do item, e o desbloqueio de tier ainda precisa
-    # ser satisfeito por 4 itens do tier anterior, mas não adiciona custo de ticket.
     cost_info = analysis.calcular_custo_total_item(
         item_name,
         GLOBAL_SHOP_ITEMS,
-        previously_purchased_item_names 
+        previously_purchased_item_names
     )
-    
-    # O 'total_cost' de calcular_custo_total_item é o CUSTO EM TICKETS para adquirir o item
-    # (se o item for de ticket) + CUSTO EM TICKETS para desbloquear o tier.
-    # Se o item não for de ticket, cost_info['item_cost'] será None.
-    # O cost_info['total_cost'] será apenas o custo de desbloqueio em tickets.
 
-    custo_total_final_em_tickets = cost_info.get('total_cost', float('inf'))
-    custo_desbloqueio_em_tickets = cost_info.get('unlock_cost', 0)
+    custo_total_final_em_tickets = cost_info.get('total_cost') # Pode ser float('inf')
+    custo_desbloqueio_em_tickets = cost_info.get('unlock_cost') # Pode ser float('inf')
     itens_necessarios_para_desbloqueio_com_custo = cost_info.get('unlock_items_details', [])
-    
-    # O 'custo_a_ser_exibido' depende da moeda do item alvo
-    custo_a_ser_exibido = custo_total_final_em_tickets
-    if moeda != 'ticket':
-        custo_a_ser_exibido = item_shop_data.get('cost') # Mostra o custo na moeda original
-        # Mas o custo de desbloqueio em tickets ainda é relevante se o usuário quiser o item
-        # e precisar desbloquear o tier com tickets.
 
-    log.debug(f"Detalhes compra para '{item_name}': Custo Exibido={custo_a_ser_exibido}, Moeda Item={moeda}, Custo Desbloqueio (Tickets)={custo_desbloqueio_em_tickets}")
+    custo_a_ser_exibido = item_shop_data.get('cost') # Custo na moeda original do item
+    if moeda == 'ticket':
+        custo_a_ser_exibido = custo_total_final_em_tickets
+
+    # Tratar float('inf') para serialização JSON
+    custo_a_ser_exibido_json = None if custo_a_ser_exibido == float('inf') else custo_a_ser_exibido
+    custo_desbloqueio_json = None if custo_desbloqueio_em_tickets == float('inf') else custo_desbloqueio_em_tickets
+
+    # Mesmo que o item não seja de ticket, o custo de desbloqueio do tier (em tickets) ainda é relevante
+    # para o usuário entender o que precisa para liberar o tier.
+    # Se o item em si não é de ticket, seu "custo total em tickets" para aquisição é efetivamente infinito (ou não aplicável),
+    # mas o custo de desbloqueio do tier ainda pode ser um número (ou zero).
+
+    log.debug(f"Detalhes compra para '{item_name}': Custo Exibido (JSON)={custo_a_ser_exibido_json}, Moeda Item={moeda}, Custo Desbloqueio (JSON)={custo_desbloqueio_json}")
 
     return jsonify({
         "success": True,
         "item_name": item_name,
-        "total_cost": custo_a_ser_exibido, # O que será mostrado no confirm()
+        "total_cost": custo_a_ser_exibido_json, # Custo na moeda do item, ou total em tickets se item for de ticket
         "currency": moeda,
         "tier": tier,
-        "unlock_cost": custo_desbloqueio_em_tickets, # Sempre o custo de desbloqueio em tickets
+        "unlock_cost": custo_desbloqueio_json, # Custo de desbloqueio em tickets (pode ser 0 ou null)
         "unlock_items_details": itens_necessarios_para_desbloqueio_com_custo,
         "token_name": GLOBAL_SEASONAL_TOKEN_NAME
     })
