@@ -1,19 +1,42 @@
 # --- Versão da Aplicação ---
 APP_VERSION = "0.1.0"
 
+# Nome do Token Sazonal (Atualize a cada temporada)
+SEASONAL_TOKEN_NAME = "Geniseed"
+
 # Data final da temporada atual (ATUALIZE A CADA TEMPORADA
 SEASON_START_DATE = "2025-05-01"
-SEASON_END_DATE = "2025-07-31" # Exemplo: Final de Julho de 2025
+SEASON_END_DATE = "2025-07-31" 
+
+# ---> NOVAS CONFIGURAÇÕES PARA O CALENDÁRIO ANALÍTICO DE TICKETS (MÁXIMO POTENCIAL COM COMPRAS SIMULADAS) ---
 
 # Data em que atividades (além do baú) começam a render tokens sazonais
 DATE_ACTIVITIES_START_YIELDING_TOKENS = "2025-05-05"
 
-#Datas de entrega dupla para calendario (out id farm)
-DOUBLE_DELIVERY_DATE = "2025-05-16"
+#Datas de entrega dupla para calendario
+DOUBLE_DELIVERY_DATE = "2025-05-06"
 DOUBLE_DELIVERY_INTERVAL_DAYS = 8
 
-# Nome do Token Sazonal (Atualize a cada temporada)
-SEASONAL_TOKEN_NAME = "Geniseed"
+NUM_CHORES_COMPONENTES_SEMANAIS = 21
+NUM_BOUNTIES_COMPONENTES_SEMANAIS = 21
+DAILY_DELIVERY_TICKETS_BASE = 35
+MAX_WEEKLY_BOUNTY_TICKETS_BASE = 188
+MAX_WEEKLY_CHORE_TICKETS_BASE = 42
+DAILY_CHEST_TICKETS = 1
+WEEKLY_RESET_DAY = 0 # Segunda-feira
+
+CALENDAR_BONUS_ITEM_PURCHASE_PRIORITY = [
+    {
+        "name": "Flower Mask",
+        "buff_source_key": "Flower Mask"
+    },
+    {
+        "name": "Love Charm Shirt",
+        "buff_source_key": "Love Charm Shirt"
+    },
+]
+
+# ---> FIM DAS NOVAS CONFIGURAÇÕES PARA O CALENDÁRIO ---
 
 # --- Itens da Loja Sazonal e Custos ---
 # Estrutura: "Nome Exato do Item": {"cost": VALOR, "currency": "ticket" ou "sfl", "tier": 1/2/3/4}
@@ -63,13 +86,9 @@ BASE_DELIVERY_REWARDS = {
 }
 
 # ---> DEFINIÇÃO DAS FONTES DE BÔNUS DO JOGADOR ---
-# Este dicionário define os bônus potenciais, seus valores base e como verificar se estão ativos.
-# Pode ser usado para diferentes tipos de atividades, não apenas entregas.
-# Considerar renomear para DEFINED_PLAYER_BONUSES para maior clareza de seu propósito geral.
-# Por enquanto, manteremos o nome original, mas entendendo seu uso mais amplo.
 SEASONAL_DELIVERY_BUFFS = { # Poderia ser renomeado para DEFINED_PLAYER_BONUSES
     # Tipo 'vip': Verifica se o VIP está ativo
-    "vip": {"type": "vip", "bonus_value": 2, "description": "VIP Status"}, # 'bonus' renomeado para 'bonus_value'
+    "vip": {"type": "vip", "bonus_value": 2, "description": "VIP Status"},
 
     # Tipo 'equipped': Verifica se o VALOR abaixo existe em farm.bumpkin.equipped.* OU farm.farmHands.bumpkins.*.equipped.*
     "Flower Mask": {"type": "equipped", "bonus_value": 1, "description": "Flower Mask equipped"},
@@ -99,7 +118,6 @@ ACTIVITY_BONUS_RULES = {
         "description": "Bônus para tokens sazonais de entregas de NPC.",
         "applicable_bonuses": ALL_PLAYER_BONUSES, # Todos os bônus
         "reward_type": "numeric_token"
-        # A lógica de aplicação para deliveries já é bem tratada pelo total_delivery_bonus
     },
     "animal_bounties": {
         "description": "Bônus para tokens sazonais em recompensas de bounties de animais (Mega Board).",

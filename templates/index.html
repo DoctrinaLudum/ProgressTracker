@@ -1,23 +1,33 @@
 {% extends 'base.html' %}
 {% block title %}Projeções Sazonais - Progress Tracker{% endblock %}
 
+{# --- DEFINIÇÃO DAS VARIÁVEIS GLOBAIS JAVASCRIPT ---- #}
+{% block pre_main_scripts %}
+    <script>
+        window.SEASONAL_SHOP_ITEMS_DATA = {{ seasonal_shop_items_for_js|tojson|safe }};
+        window.CALENDAR_BONUS_ITEM_PURCHASE_PRIORITY_DATA = {{ calendar_bonus_priority_for_js|tojson|safe }};
+        window.SEASONAL_DELIVERY_BUFFS_DATA = {{ seasonal_delivery_buffs_for_js|tojson|safe }};
+        window.GLOBAL_SEASONAL_TOKEN_NAME = {{ token_name|tojson|safe }};
+    </script>
+{% endblock %}
+{# ------------------------------------------------------- #}
+
 {% block content %}
 
     {# --- SEÇÃO 1: Introdução e Formulário (MODIFICADO) --- #}
     {% if not farm_id_submitted %}
-        <div class="text-center mb-4 mt-3"> {# Reduzido mb-5 para mb-4 e mt-4 para mt-3 #}
+        <div class="text-center mb-4 mt-3">
             <h2 class="text-success">Planeje sua Temporada no Sunflower Land!</h2>
             <p class="lead text-muted">
                  Estime seus ganhos de <strong class="text-success">{{ token_name|default('Tokens Sazonais') }}</strong>, calcule o tempo para obter itens sazonais e simule cenários!
             </p>
         </div>
 
-        {# --- Formulário de Busca (MOVIDO PARA CIMA) --- #}
-        <div class="row justify-content-center mb-4"> {# Mantido mb-4 por enquanto #}
-            <div class="col-lg-5 col-md-8"> {# Aumentado um pouco o col-lg para dar mais espaço ao input #}
+        <div class="row justify-content-center mb-4">
+            <div class="col-lg-5 col-md-8">
                 <h4 class="text-center text-success mb-3">Comece Agora</h4>
                 <form method="POST" action="/" id="farm-form">
-                    <div class="input-group input-group-lg mb-3"> {# Usando input-group para visual #}
+                    <div class="input-group input-group-lg mb-3">
                         <input type="text" class="form-control text-center" id="farm_id" name="farm_id" required value="{{ farm_id_submitted if farm_id_submitted else '' }}" placeholder="Digite o Farm ID aqui...">
                              <button type="submit" class="btn btn-success" data-loading-gif-url="{{ url_for('static', filename='images/minting.gif') }}">
                              <i class="bi bi-search me-1"></i>
@@ -27,14 +37,9 @@
                 </form>
             </div>
         </div>
-        <hr class="my-4"> {# Reduzido my-5 para my-4 #}
-
-        {# --- SEÇÃO 3: Indicador de Carregamento (REMOVIDO) --- #}
+        <hr class="my-4">
         
-
-        {# --- SEÇÃO 2: Cards "Planeje sua Temporada" (PRIMEIRA LINHA DE CARDS) --- #}
-        <div class="row mb-4 justify-content-center"> {# Reduzido mb-5 para mb-4 #}
-            {# Card 1: Estimativa #}
+        <div class="row mb-4 justify-content-center">
             <div class="col-md-4 mb-3">
                 <div class="card text-center h-100 shadow-sm">
                     <div class="card-body d-flex flex-column">
@@ -44,7 +49,6 @@
                     </div>
                 </div>
             </div>
-            {# Card 2: Calculadora #}
             <div class="col-md-4 mb-3">
                 <div class="card text-center h-100 shadow-sm">
                     <div class="card-body d-flex flex-column">
@@ -54,7 +58,6 @@
                     </div>
                 </div>
             </div>
-             {# Card 3: Simulação #}
             <div class="col-md-4 mb-3">
                  <div class="card text-center h-100 shadow-sm">
                     <div class="card-body d-flex flex-column">
@@ -66,9 +69,7 @@
             </div>
         </div>
 
-        {# --- NOVA SEÇÃO: RECURSOS PRINCIPAIS (SEGUNDA LINHA DE CARDS) --- #}
-        {# Removido o <hr class="my-5"> que estava aqui para economizar espaço #}
-        <div class="row text-center mb-4"> {# Reduzido mb-5 para mb-4 #}
+        <div class="row text-center mb-4">
             <div class="col-12">
                 <h3 class="text-success mb-4">Explore o Poder do Progress Tracker</h3>
             </div>
@@ -100,13 +101,9 @@
                 </div>
             </div>
         </div>
-        {# --- FIM DA NOVA SEÇÃO --- #}
-
-        {# Removido o "Comece Agora" daqui pois foi movido para cima #}
     {% endif %}
 
     
-    {# --- SEÇÃO 4: Área de Resultados Principal (MANTIDO) --- #}
     <div class="mt-0 pt-0" id="results-area">
 
     {% if error_message %}
@@ -114,15 +111,12 @@
              <div class="alert alert-danger" role="alert">{{ error_message }}</div>
         </div>
 
-    {# MODIFICADO AQUI: de farm_data para farm_data_display #}
     {% elif farm_data_display %} 
         <span id="current-farm-id-data" data-farm-id="{{ farm_id_submitted }}" class="d-none"></span>
     <div>   
-        {# --- Card de Identificação da Fazenda (LAYOUT REVISADO E INTEGRADO) --- #}
         <div class="card farm-identification-card mb-3 shadow-sm">
             <div class="card-body p-3">
                 <div class="row g-0">
-                    {# Coluna da Esquerda: Informações Textuais #}
                     <div class="col-md-7 col-lg-8">
                         <div class="d-flex flex-column justify-content-between h-100">
                             <div>
@@ -171,7 +165,6 @@
                         </div>
                     </div>
 
-                    {# Coluna da Direita: Imagem do Bumpkin #}
                     <div class="col-md-5 col-lg-4 d-flex align-items-center justify-content-center justify-content-md-end p-2">
                         {% if bumpkin_image_url %}
                             <img src="{{ bumpkin_image_url }}" alt="Bumpkin" class="img-fluid rounded shadow-sm bumpkin-image">
@@ -189,9 +182,6 @@
              <div class="alert alert-success small mt-3" role="alert"> <h6 class="alert-heading mb-1" style="font-size: 0.9rem;">Atividade Desde a Última Verificação:</h6> <ul class="list-unstyled mb-0"> {% if live_completions > 0 %}<li>- <strong>{{ live_completions }}</strong> nova(s) entrega(s) concluída(s).</li>{% endif %} {% if live_tokens > 0 %}<li>- Tokens Sazonais Estimados Ganhos (Base): <strong>{{ live_tokens }}</strong>.</li>{% endif %} {% if live_cost_sfl > 0 %}<li>- Custo Flower Estimado Incorrido: <strong>~{{ "%.2f"|format(live_cost_sfl|float) }}</strong> <em class="text-muted" style="font-size: 0.9em;">(...)</em></li>{% endif %} </ul> </div>
             {% endif %}
 
-            
-
-            {# --- ESTRUTURA DE ABAS RESTAURADA COM LOJA ISOLADA --- #}
             <ul class="nav nav-tabs mt-4" id="analysisTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="projection-tab" data-bs-toggle="tab" data-bs-target="#projection-tab-pane" type="button" role="tab" aria-controls="projection-tab-pane" aria-selected="true">
@@ -208,20 +198,23 @@
                        <i class="bi bi-moisture me-1"></i> Fontes de Tokens
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="calendar-tab-btn" data-bs-toggle="tab" data-bs-target="#calendar-tab-pane" type="button" role="tab" aria-controls="calendar-tab-pane" aria-selected="false">
+                        <i class="bi bi-calendar3-week me-1"></i> Calendário Potencial
+                    </button>
+                </li>
             </ul>
 
             <div class="tab-content pt-3" id="analysisTabsContent">
-                {# Painel Projeções #}
                 <div class="tab-pane fade show active" id="projection-tab-pane" role="tabpanel" aria-labelledby="projection-tab" tabindex="0">
                     <h3 class="text-primary mb-3">Calculadora de Tickets <span class="badge bg-primary">{{ token_name|default('Sazonal') }}</span></h3>
                     <p><i>(Interface da calculadora e projeções será implementada aqui...)</i></p>
                 </div>
 
-                {# Painel da Loja Sazonal (fica vazio, conteúdo é mostrado em #results-area-shop via JS) #}
                 <div class="tab-pane fade" id="shop-tab-pane" role="tabpanel" aria-labelledby="shop-tab" tabindex="0">
+                    {# Conteúdo da loja é carregado por JS em #results-area-shop #}
                 </div>
                 
-                {# NOVO PAINEL PARA FONTES DE TOKENS COM SUB-ABAS #}
                 <div class="tab-pane fade" id="token-sources-main-tab-pane" role="tabpanel" aria-labelledby="token-sources-main-tab" tabindex="0">
                     <ul class="nav nav-pills mb-3" id="tokenSourcesSubTabs" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -252,10 +245,13 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="tab-pane fade" id="calendar-tab-pane" role="tabpanel" aria-labelledby="calendar-tab-btn" tabindex="0">
+                    {% include '_calendar_potential_content.html' %}
+                </div>
+
             </div>
-            {# --- Fim da Estrutura de Abas --- #}
             
-            {# Esta div é usada para exibir o conteúdo da loja quando a aba "Loja Sazonal" é clicada, via JavaScript #}
             <div id="results-area-shop" class="d-none">
                 {% include '_shop_content.html' %}
             </div>
@@ -272,4 +268,8 @@
 
 </div> 
 
+{% endblock %}
+
+{% block post_main_scripts %}
+    {# {{ super() }} se houver scripts no post_main_scripts do base.html #}
 {% endblock %}

@@ -2,7 +2,7 @@
 import logging
 import os
 from datetime import datetime
-
+import json
 from flask import Flask, jsonify, render_template, request
 
 import analysis
@@ -68,7 +68,8 @@ def index():
         "shop_items_ticket": GLOBAL_SHOP_ITEMS_TICKETS,
         "avg_daily_rate": TAXA_MEDIA_DIARIA_PLACEHOLDER,
         "avg_daily_rate_status": 'placeholder',
-        "app_version": GLOBAL_APP_VERSION
+        "app_version": GLOBAL_APP_VERSION,
+        "seasonal_shop_items_json": json.dumps(GLOBAL_SHOP_ITEMS)
     }
 
     if request.method == 'POST':
@@ -151,9 +152,13 @@ def index():
     elif isinstance(analise_chores_obj, dict) and analise_chores_status != 'ok' and analise_chores_obj.get('mensagem_erro'):
         log.warning(f"  -> Chores Hist. (erro/aviso): {analise_chores_obj.get('mensagem_erro')}")
 
+    context["seasonal_shop_items_for_js"] = GLOBAL_SHOP_ITEMS # Passa o objeto Python
+    context["calendar_bonus_priority_for_js"] = getattr(config, 'CALENDAR_BONUS_ITEM_PURCHASE_PRIORITY', []) # Passa a lista Python
+    context["seasonal_delivery_buffs_for_js"] = getattr(config, 'SEASONAL_DELIVERY_BUFFS', {}) # Passa o dict Python
+
     return render_template('index.html', **context)
 
-# --- Rota AJAX para Calcular Projeção Sazonal ---
+# ---> Rota AJAX para Calcular Projeção Sazonal ---
 @app.route('/calculate_projection', methods=['POST'])
 def calculate_projection():
     # ... (código existente, sem alterações) ...
@@ -208,6 +213,119 @@ def calculate_projection():
     except Exception as e:
         log.exception(f"Erro inesperado durante cálculo da projeção AJAX para {item_name}: {e}")
         return jsonify({"success": False, "error": "Erro interno ao calcular a projeção."}), 500
+
+# ---> ROTA AJAX PARA OBTER DADOS DO CALENDÁRIO SAZONAL FIXO ---
+@app.route('/get_seasonal_calendar', methods=['POST'])
+def get_seasonal_calendar():
+    log.info("Requisição POST recebida em /get_seasonal_calendar")
+
+    try:
+        data = request.get_json()
+        if not data:
+            log.warning("Nenhum dado JSON recebido na requisição POST para /get_seasonal_calendar.")
+            return jsonify({"success": False, "error": "Dados da requisição ausentes."}), 400
+
+        vip_ativo_para_simulacao = data.get('vip', False) # Pega 'vip' do JSON, default para False
+        # Lista de compras simuladas pelo usuário.
+        # Formato esperado: [{"name": "NomeItem", "data_compra": "YYYY-MM-DD", "custo_real_gasto": N, "buff_source_key": "ChaveBuff"}, ...]
+        compras_simuladas_pelo_usuario = data.get('compras_simuladas', []) 
+
+        log.debug(f"Parâmetros recebidos - VIP: {vip_ativo_para_simulacao}, Compras: {compras_simuladas_pelo_usuario}")
+
+        dados_do_calendario = analysis.gerar_dados_calendario_sazonal( #
+            vip_ativo_param=vip_ativo_para_simulacao,
+            compras_simuladas_usuario=compras_simuladas_pelo_usuario # Passa a lista de compras
+        )
+        log.debug(f"Dados do calendário gerados por analysis.py (primeiro item, se houver): {dados_do_calendario[0] if dados_do_calendario else 'Vazio'}")
+
+        
+        if not dados_do_calendario:
+            log.error("gerar_dados_calendario_sazonal retornou None ou lista vazia.")
+            return jsonify({"success": False, "error": "Falha ao gerar dados do calendário (vazio)."}), 500
+        
+        if isinstance(dados_do_calendario, list) and len(dados_do_calendario) > 0 and "erro" in dados_do_calendario[0]:
+             log.error(f"Erro retornado por gerar_dados_calendario_sazonal: {dados_do_calendario[0]['erro']}")
+             return jsonify({"success": False, "error": dados_do_calendario[0]["erro"]}), 500
+
+        season_start_date_config = getattr(config, 'SEASON_START_DATE', 'N/A') #
+        season_end_date_config = getattr(config, 'SEASON_END_DATE', 'N/A') #
+        
+        log.info("FIM: Retornando JSON com sucesso para /get_seasonal_calendar") # Log de Fim da Rota (Sucesso)
+        return jsonify({
+            "success": True,
+            "calendar_data": dados_do_calendario,
+            "token_name": GLOBAL_SEASONAL_TOKEN_NAME, #
+            "season_start": season_start_date_config,
+            "season_end": season_end_date_config,
+            "vip_simulated": vip_ativo_para_simulacao
+        })
+    except Exception as e:
+        log.exception(f"ERRO INESPERADO na rota /get_seasonal_calendar: {e}")
+        return jsonify({"success": False, "error": "Erro interno ao gerar dados do calendário."}), 500
+# --->FIM ROTA AJAX PARA OBTER DADOS DO CALENDÁRIO SAZONAL FIXO ---
+
+# ---> ROTA CALCULO DE COMPRA CALENDARIO SAZONAL
+@app.route('/calculate_purchase_details_for_calendar', methods=['POST'])
+def calculate_purchase_details_for_calendar():
+    log.info("Requisição POST recebida em /calculate_purchase_details_for_calendar")
+    data = request.get_json()
+    if not data or not data.get('item_name'):
+        return jsonify({"success": False, "error": "Nome do item não fornecido."}), 400
+
+    item_name = data.get('item_name')
+    # ALTERADO PARA previously_purchased_item_names para corresponder ao JS
+    previously_purchased_item_names = data.get('previously_purchased_item_names', []) 
+
+    item_shop_data = GLOBAL_SHOP_ITEMS.get(item_name)
+    if not item_shop_data:
+        return jsonify({"success": False, "error": f"Item '{item_name}' não encontrado na loja."}), 404
+
+    # ... (resto da lógica como antes, usando previously_purchased_item_names
+    #      para chamar analysis.calcular_custo_total_item)
+    moeda = item_shop_data.get('currency')
+    tier = item_shop_data.get('tier')
+    custo_total_real_para_o_item = item_shop_data.get('cost') # Custo base do item
+    custo_desbloqueio_em_tickets = 0
+    itens_necessarios_para_desbloqueio_com_custo = []
+
+    # O custo total real só é recalculado com desbloqueio se o item alvo for de ticket.
+    # Se for de SFL, o custo é o custo do item, e o desbloqueio de tier ainda precisa
+    # ser satisfeito por 4 itens do tier anterior, mas não adiciona custo de ticket.
+    cost_info = analysis.calcular_custo_total_item(
+        item_name,
+        GLOBAL_SHOP_ITEMS,
+        previously_purchased_item_names 
+    )
+    
+    # O 'total_cost' de calcular_custo_total_item é o CUSTO EM TICKETS para adquirir o item
+    # (se o item for de ticket) + CUSTO EM TICKETS para desbloquear o tier.
+    # Se o item não for de ticket, cost_info['item_cost'] será None.
+    # O cost_info['total_cost'] será apenas o custo de desbloqueio em tickets.
+
+    custo_total_final_em_tickets = cost_info.get('total_cost', float('inf'))
+    custo_desbloqueio_em_tickets = cost_info.get('unlock_cost', 0)
+    itens_necessarios_para_desbloqueio_com_custo = cost_info.get('unlock_items_details', [])
+    
+    # O 'custo_a_ser_exibido' depende da moeda do item alvo
+    custo_a_ser_exibido = custo_total_final_em_tickets
+    if moeda != 'ticket':
+        custo_a_ser_exibido = item_shop_data.get('cost') # Mostra o custo na moeda original
+        # Mas o custo de desbloqueio em tickets ainda é relevante se o usuário quiser o item
+        # e precisar desbloquear o tier com tickets.
+
+    log.debug(f"Detalhes compra para '{item_name}': Custo Exibido={custo_a_ser_exibido}, Moeda Item={moeda}, Custo Desbloqueio (Tickets)={custo_desbloqueio_em_tickets}")
+
+    return jsonify({
+        "success": True,
+        "item_name": item_name,
+        "total_cost": custo_a_ser_exibido, # O que será mostrado no confirm()
+        "currency": moeda,
+        "tier": tier,
+        "unlock_cost": custo_desbloqueio_em_tickets, # Sempre o custo de desbloqueio em tickets
+        "unlock_items_details": itens_necessarios_para_desbloqueio_com_custo,
+        "token_name": GLOBAL_SEASONAL_TOKEN_NAME
+    })
+# ---> FIM ROTA CALCULO DE COMPRA CALENDARIO SAZONAL
 
 # --- Bloco de Execução Principal ---
 if __name__ == '__main__':
