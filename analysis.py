@@ -294,41 +294,66 @@ def calcular_custo_minimo_desbloqueio(tier_alvo, itens_loja, itens_ja_possuidos_
         'unlock_items_details': final_unlock_items_details_list_for_cost
     }
 
-def calcular_custo_total_item(nome_item_alvo, itens_loja, marked_item_names):
-    if not isinstance(itens_loja, dict) or not itens_loja: 
-        return {'total_cost': float('inf'), 'item_cost': None, 'unlock_cost': float('inf'), 'unlock_items_details': []}
+# --->  FUNÇÃO: Custo de Item (Loja,Calendario) <---
+def calcular_custo_total_item(nome_item_alvo: str, 
+                              itens_loja: Dict[str, Any], 
+                              marked_item_names: List[str]) -> Dict[str, Any]:
+    if not isinstance(itens_loja, dict) or not itens_loja:
+        return {'total_cost_tickets': float('inf'), 'item_cost_original': None, 'item_currency_original': None, 'unlock_cost_tickets': float('inf'), 'unlock_items_details': [], 'is_tier_unlockable': False}
+
     item_data = itens_loja.get(nome_item_alvo)
-    if not item_data: 
-        return {'total_cost': float('inf'), 'item_cost': None, 'unlock_cost': float('inf'), 'unlock_items_details': []}
-    item_cost = item_data.get('cost')
-    item_currency = item_data.get('currency')
+    if not item_data:
+        return {'total_cost_tickets': float('inf'), 'item_cost_original': None, 'item_currency_original': None, 'unlock_cost_tickets': float('inf'), 'unlock_items_details': [], 'is_tier_unlockable': False}
+
+    item_cost_original = item_data.get('cost')
+    item_currency_original = item_data.get('currency')
     item_tier = item_data.get('tier')
-    base_item_cost_tickets = 0 
-    if item_currency != 'ticket': 
-         log.warning(f"Item alvo '{nome_item_alvo}' não é de ticket.")
-         return {'total_cost': float('inf'), 'item_cost': item_cost, 'unlock_cost': float('inf'), 'unlock_items_details': []}
-    if not isinstance(item_cost, (int, float)) or item_cost <= 0: 
-         return {'total_cost': float('inf'), 'item_cost': None, 'unlock_cost': float('inf'), 'unlock_items_details': []}
-    else:
-        base_item_cost_tickets = item_cost 
-    if not isinstance(item_tier, int) or item_tier < 1: 
-         return {'total_cost': float('inf'), 'item_cost': base_item_cost_tickets, 'unlock_cost': float('inf'), 'unlock_items_details': []}
-    log.debug(f"Calculando custo total detalhado para '{nome_item_alvo}' com marcados: {marked_item_names}")
+
+    if not all(isinstance(val, (int, float)) or val is not None for val in [item_cost_original]) or \
+       not isinstance(item_currency_original, str) or \
+       not (isinstance(item_tier, int) and item_tier >= 1):
+        log.warning(f"Dados inválidos para o item '{nome_item_alvo}': Custo={item_cost_original}, Moeda={item_currency_original}, Tier={item_tier}")
+        return {'total_cost_tickets': float('inf'), 'item_cost_original': item_cost_original, 'item_currency_original': item_currency_original, 'unlock_cost_tickets': float('inf'), 'unlock_items_details': [], 'is_tier_unlockable': False}
+
+    # Calcula o custo de desbloqueio EM TICKETS para o tier do item_alvo
     unlock_info = calcular_custo_minimo_desbloqueio(item_tier, itens_loja, marked_item_names)
-    custo_desbloqueio_tickets = unlock_info['unlock_cost']
-    unlock_items_details_list = unlock_info['unlock_items_details']
-    log.debug(f" -> Custo desbloqueio (Tickets): {custo_desbloqueio_tickets}. Itens caminho: {len(unlock_items_details_list)} itens.")
-    if custo_desbloqueio_tickets == float('inf'):
-        log.warning(f"Não é possível calcular custo total para '{nome_item_alvo}', tier não desbloqueável.")
-        return {'total_cost': float('inf'), 'item_cost': base_item_cost_tickets, 'unlock_cost': float('inf'), 'unlock_items_details': unlock_items_details_list}
-    custo_total_tickets = custo_desbloqueio_tickets + base_item_cost_tickets
-    log.debug(f"Custo total estimado (Tickets) para '{nome_item_alvo}': {custo_total_tickets} (Item: {base_item_cost_tickets}, Desbloq: {custo_desbloqueio_tickets})")
+    custo_desbloqueio_tickets_para_tier_alvo = unlock_info['unlock_cost']
+    unlock_items_details_list_para_tier_alvo = unlock_info['unlock_items_details']
+
+    is_tier_unlockable_flag = custo_desbloqueio_tickets_para_tier_alvo != float('inf')
+
+    log.debug(f"Análise de custo para '{nome_item_alvo}' (Moeda: {item_currency_original}, Tier: {item_tier}):")
+    log.debug(f"  Custo original do item: {item_cost_original} {item_currency_original}")
+    log.debug(f"  Custo de desbloqueio (Tickets) para alcançar Tier {item_tier}: {custo_desbloqueio_tickets_para_tier_alvo if is_tier_unlockable_flag else 'Impossível'}")
+    if is_tier_unlockable_flag and unlock_items_details_list_para_tier_alvo:
+        log.debug(f"  Itens de Ticket para desbloqueio: {[item['name'] for item in unlock_items_details_list_para_tier_alvo]}")
+
+    # O 'total_cost_tickets' representa o custo total em tickets que seria debitado
+    # se o usuário confirmasse a aquisição (incluindo o item alvo se for de ticket + desbloqueio).
+    total_cost_tickets_final = float('inf')
+
+    if not is_tier_unlockable_flag:
+        # Se o tier não é desbloqueável, o custo total em tickets é infinito.
+        total_cost_tickets_final = float('inf')
+    elif item_currency_original == 'ticket':
+        # Se o item é de ticket e o tier é desbloqueável
+        item_base_cost_tickets = item_cost_original if isinstance(item_cost_original, (int, float)) else 0
+        total_cost_tickets_final = item_base_cost_tickets + custo_desbloqueio_tickets_para_tier_alvo
+    else:
+        # Se o item não é de ticket, mas o tier é desbloqueável,
+        # o 'total_cost_tickets' é apenas o custo de desbloqueio do tier.
+        total_cost_tickets_final = custo_desbloqueio_tickets_para_tier_alvo
+        
     return {
-        'total_cost': int(round(custo_total_tickets)),
-        'item_cost': int(round(base_item_cost_tickets)),
-        'unlock_cost': int(round(custo_desbloqueio_tickets)),
-        'unlock_items_details': unlock_items_details_list 
+        'total_cost_tickets': total_cost_tickets_final, # Custo total EM TICKETS a ser debitado (item de ticket + desbloqueio OU só desbloqueio)
+        'item_cost_original': item_cost_original,       # Custo do item na sua moeda original
+        'item_currency_original': item_currency_original, # Moeda original do item
+        'unlock_cost_tickets': custo_desbloqueio_tickets_para_tier_alvo, # Custo apenas de desbloqueio do tier, em tickets
+        'unlock_items_details': unlock_items_details_list_para_tier_alvo, # Itens de TICKET para o desbloqueio
+        'is_tier_unlockable': is_tier_unlockable_flag # Flag crucial
     }
+# --->  FIM FUNÇÃO: Custo de Item (Loja,Calendario) <---
+
 
 def projetar_dias_para_item(custo_total, taxa_media_diaria):
     if not isinstance(taxa_media_diaria, (int, float)) or taxa_media_diaria <= 0:
@@ -468,207 +493,240 @@ def calcular_estimativa_token_chores(farm_id, data_inicio_str, data_fim_str, pri
 
 # ---> CALENADRIO SAZONAL <---
 DIAS_SEMANA_PT_COMPLETO = {
-    0: "Segunda", # Monday
-    1: "Terça",   # Tuesday
-    2: "Quarta",  # Wednesday
-    3: "Quinta",  # Thursday
-    4: "Sexta",   # Friday
-    5: "Sábado",  # Saturday
-    6: "Domingo"  # Sunday
+    0: "Segunda", 1: "Terça", 2: "Quarta", 3: "Quinta",
+    4: "Sexta", 5: "Sábado", 6: "Domingo"
 }
 
-# ---> GERAR CALENADARIO SAZONAL
-def gerar_dados_calendario_sazonal(vip_ativo_param=False, compras_simuladas_usuario=None):
-    log.info(f"INÍCIO V3.3: gerar_dados_calendario_sazonal com VIP={vip_ativo_param}, Compras Iniciais: {len(compras_simuladas_usuario) if compras_simuladas_usuario else 0}")
+def _get_config_dates():
+    """Helper para buscar e parsear datas de configuração da temporada."""
+    data_inicio_str = getattr(config, 'SEASON_START_DATE', None)
+    data_fim_str = getattr(config, 'SEASON_END_DATE', None)
+    date_activities_start_str = getattr(config, 'DATE_ACTIVITIES_START_YIELDING_TOKENS', data_inicio_str)
 
-    if compras_simuladas_usuario is None:
-        compras_simuladas_usuario = []
-        
-    compras_simuladas_usuario.sort(key=lambda x: datetime.strptime(x["data_compra"], '%Y-%m-%d'))
+    if not data_inicio_str or not data_fim_str:
+        log.error("Datas de início ou fim da temporada não configuradas.")
+        return None, None, None, "Configuração de data da temporada ausente."
 
-    dados_calendario = []
     try:
-        data_inicio_temporada_str = getattr(config, 'SEASON_START_DATE', None)
-        data_fim_temporada_str = getattr(config, 'SEASON_END_DATE', None)
-        date_activities_start_str = getattr(config, 'DATE_ACTIVITIES_START_YIELDING_TOKENS', data_inicio_temporada_str)
-
-        if not data_inicio_temporada_str or not data_fim_temporada_str:
-            log.error("Datas de início ou fim da temporada não configuradas.")
-            return [{"erro": "Configuração de data da temporada ausente."}]
-
-        data_inicio_temporada = datetime.strptime(data_inicio_temporada_str, '%Y-%m-%d')
-        data_fim_temporada = datetime.strptime(data_fim_temporada_str, '%Y-%m-%d')
+        data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d')
+        data_fim = datetime.strptime(data_fim_str, '%Y-%m-%d')
         date_activities_start = datetime.strptime(date_activities_start_str, '%Y-%m-%d')
+        return data_inicio, data_fim, date_activities_start, None
     except ValueError as e:
         log.error(f"Formato de data inválido nas configurações da temporada: {e}")
-        return [{"erro": "Configuração de data da temporada inválida."}]
+        return None, None, None, "Configuração de data da temporada inválida."
 
-    dia_atual_loop = data_inicio_temporada
-    
-    # Bônus ativos na simulação (começa apenas com VIP se indicado)
-    bonus_ativos_simulacao_nomes = set()
-    if vip_ativo_param and "vip" in config.SEASONAL_DELIVERY_BUFFS: #
-        bonus_ativos_simulacao_nomes.add("vip")
+def _get_double_delivery_dates(data_inicio_temporada, data_fim_temporada):
+    """Helper para calcular as datas de Double Delivery na temporada."""
+    dates_set = set()
+    dd_config_date_str = getattr(config, 'DOUBLE_DELIVERY_DATE', None)
+    dd_interval = getattr(config, 'DOUBLE_DELIVERY_INTERVAL_DAYS', 0)
 
-    # Estado da simulação que é atualizado a cada dia
-    tickets_acumulados_para_compra_liquido = 0
-    tickets_acumulados_brutos_temporada = 0
-    
-    # Ponteiro para a próxima compra simulada pelo usuário a ser processada
-    idx_proxima_compra_usuario = 0
-
-    # --- Constantes da Configuração ---
-    dia_reset_semanal = getattr(config, 'WEEKLY_RESET_DAY', 0)
-    base_total_entregas_dia = getattr(config, 'DAILY_DELIVERY_TICKETS_BASE', 0)
-    num_npcs_entrega_tickets = len(config.BASE_DELIVERY_REWARDS) #
-    base_semanal_bounties = getattr(config, 'MAX_WEEKLY_BOUNTY_TICKETS_BASE', 0)
-    base_semanal_chores = getattr(config, 'MAX_WEEKLY_CHORE_TICKETS_BASE', 0)
-    tickets_bau_diario = getattr(config, 'DAILY_CHEST_TICKETS', 0)
-    num_chores_semanais_componentes = getattr(config, 'NUM_CHORES_COMPONENTES_SEMANAIS', 0)
-    num_bounties_semanais_componentes = getattr(config, 'NUM_BOUNTIES_COMPONENTES_SEMANAIS', 0)
-    double_delivery_dates_in_season = set()
-    if hasattr(config, 'DOUBLE_DELIVERY_DATE') and config.DOUBLE_DELIVERY_DATE and \
-       hasattr(config, 'DOUBLE_DELIVERY_INTERVAL_DAYS') and config.DOUBLE_DELIVERY_INTERVAL_DAYS > 0: #
+    if dd_config_date_str and dd_interval > 0:
         try:
-            data_base_dd = datetime.strptime(config.DOUBLE_DELIVERY_DATE, '%Y-%m-%d') #
+            data_base_dd = datetime.strptime(dd_config_date_str, '%Y-%m-%d')
             current_dd_check = data_base_dd
             while current_dd_check <= data_fim_temporada:
                 if current_dd_check >= data_inicio_temporada:
-                    double_delivery_dates_in_season.add(current_dd_check.date())
-                current_dd_check += timedelta(days=config.DOUBLE_DELIVERY_INTERVAL_DAYS) #
+                    dates_set.add(current_dd_check.date())
+                current_dd_check += timedelta(days=dd_interval)
         except ValueError as e:
             log.error(f"Formato de data inválido em config.DOUBLE_DELIVERY_DATE: {e}")
+    return dates_set
 
+# ---> GERAR CALENADARIO SAZONAL
+def gerar_dados_calendario_sazonal(vip_ativo_param: bool = False, compras_simuladas_usuario: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """
+    Gera os dados dia a dia para o calendário sazonal, simulando ganhos de tickets,
+    bônus e compras de itens.
+    """
+    log.info(f"Gerando calendário sazonal: VIP={vip_ativo_param}, Compras Iniciais: {len(compras_simuladas_usuario) if compras_simuladas_usuario else 0}")
+
+    if compras_simuladas_usuario is None:
+        compras_simuladas_usuario = []
+    
+    # Ordena as compras por data para processamento cronológico
+    compras_simuladas_usuario.sort(key=lambda x: datetime.strptime(x["data_compra"], '%Y-%m-%d'))
+
+    data_inicio_temporada, data_fim_temporada, date_activities_start, error_msg = _get_config_dates()
+    if error_msg:
+        return [{"erro": error_msg}]
+
+    # --- Constantes da Configuração para Cálculos Diários/Semanais ---
+    dia_reset_semanal = getattr(config, 'WEEKLY_RESET_DAY', 0) # Segunda-feira
+    base_total_entregas_dia = getattr(config, 'DAILY_DELIVERY_TICKETS_BASE', 0)
+    num_npcs_entrega_tickets = len(getattr(config, 'BASE_DELIVERY_REWARDS', {})) #
+    base_semanal_bounties = getattr(config, 'MAX_WEEKLY_BOUNTY_TICKETS_BASE', 0)
+    base_semanal_chores = getattr(config, 'MAX_WEEKLY_CHORE_TICKETS_BASE', 0)
+    tickets_bau_diario = getattr(config, 'DAILY_CHEST_TICKETS', 1)
+    num_chores_semanais_componentes = getattr(config, 'NUM_CHORES_COMPONENTES_SEMANAIS', 0)
+    num_bounties_semanais_componentes = getattr(config, 'NUM_BOUNTIES_COMPONENTES_SEMANAIS', 0)
+    double_delivery_dates_in_season = _get_double_delivery_dates(data_inicio_temporada, data_fim_temporada)
+
+    # --- Estado da Simulação ---
+    dados_calendario: List[Dict[str, Any]] = []
+    bonus_ativos_simulacao_nomes: set[str] = set()
+    if vip_ativo_param and "vip" in config.SEASONAL_DELIVERY_BUFFS: #
+        bonus_ativos_simulacao_nomes.add("vip")
+
+    tickets_acumulados_para_compra_liquido = 0
+    tickets_acumulados_brutos_temporada = 0
+    idx_proxima_compra_usuario = 0
+    dia_atual_loop = data_inicio_temporada
 
     while dia_atual_loop <= data_fim_temporada:
         data_atual_str = dia_atual_loop.strftime('%Y-%m-%d')
         dia_da_semana_num = dia_atual_loop.weekday()
         nome_dia_semana_pt = DIAS_SEMANA_PT_COMPLETO.get(dia_da_semana_num, dia_atual_loop.strftime('%a'))
         
-        tickets_do_dia = {
+        tickets_do_dia: Dict[str, Any] = {
             "data": data_atual_str,
             "data_display": f"{dia_atual_loop.strftime('%d/%m/%y')} ({nome_dia_semana_pt})",
             "tickets_entregas_base_display": 0, "tickets_bounties_base_display": 0,
             "tickets_chores_base_display": 0, "tickets_bau": 0,
             "bonus_diario_detalhado_display": [], "total_bonus_diario_display": 0,
             "total_tickets_dia": 0, "tickets_acumulados_brutos": 0,
-            "tickets_liquidos_compra": 0, "evento_especial": [],
-            "compra_simulada_item": None, "custo_compra_simulada": None
+            "tickets_liquidos_compra": 0,
+            "eventos_do_dia_list": [],
+            "compras_do_dia_list": [],
+            "eventos_compras_display_final": None
         }
         ganhos_atividades_ativos = dia_atual_loop >= date_activities_start
 
-        # --- 1. Processar compras do usuário AGENDADAS para ESTE dia ---
-        # Isto ATIVA os bônus para os cálculos DESTE dia. A dedução do custo ocorrerá no final.
-        compra_efetuada_neste_dia_detalhes = None 
+        # 1. Processar compras simuladas agendadas para ESTE dia
+        # Ativa bônus e deduz custos de tickets
         while idx_proxima_compra_usuario < len(compras_simuladas_usuario) and \
               datetime.strptime(compras_simuladas_usuario[idx_proxima_compra_usuario]["data_compra"], '%Y-%m-%d').date() == dia_atual_loop.date():
             
             compra_atual = compras_simuladas_usuario[idx_proxima_compra_usuario]
-            log.info(f"CAL SIM V3.3: Processando compra de '{compra_atual['name']}' para o dia {data_atual_str}")
+            log.info(f"Processando compra simulada de '{compra_atual['name']}' para o dia {data_atual_str}")
             
             if compra_atual.get("buff_source_key"):
                 bonus_ativos_simulacao_nomes.add(compra_atual["buff_source_key"])
-                log.debug(f"  -> Buff '{compra_atual['buff_source_key']}' ativado para simulação (afetará os ganhos deste dia em diante).")
-            
-            # Guarda a última compra do dia para exibição e para dedução de custo mais tarde
-            compra_efetuada_neste_dia_detalhes = compra_atual 
-            # Preenche os campos de exibição da compra no `tickets_do_dia`
-            tickets_do_dia["compra_simulada_item"] = f"{compra_atual['name']} ({compra_atual.get('custo_real_gasto', 'N/A')}T)"
-            tickets_do_dia["custo_compra_simulada"] = compra_atual.get('custo_real_gasto')
-            
+                log.debug(f"  -> Buff '{compra_atual['buff_source_key']}' ativado para simulação.")
+
+            # Determina o custo a ser mostrado no badge
+            custo_para_badge = compra_atual.get('original_cost_for_display', compra_atual.get('custo_real_gasto', 'N/A'))
+
+            tickets_do_dia["compras_do_dia_list"].append(
+                f"Adquiriu: {compra_atual['name']} ({custo_para_badge}T)" # Usa custo_para_badge
+            )
+
+            item_comprado_data_loja_loop = config.SEASONAL_SHOP_ITEMS.get(compra_atual["name"])
+            # A dedução do custo_real_gasto (que já está correto na lista 'comprasSimuladasPeloUsuarioJS')
+            # deve ser feita aqui.
+            if item_comprado_data_loja_loop: # Verifica se o item existe na loja para pegar a moeda
+                # O custo_real_gasto no objeto compra_atual já foi definido corretamente pelo JS
+                # (0 para desbloqueios de itens de ticket, ou o custo real para outros casos)
+                custo_a_debitar_nesta_compra = compra_atual.get('custo_real_gasto', 0)
+
+                # Só debita se o custo_a_debitar_nesta_compra for referente a tickets.
+                # No entanto, o objeto 'compra_atual' não tem a 'currency' do item.
+                # Precisamos pegar do item_shop_data_config (ou similar) ou assumir que
+                # 'custo_real_gasto' já é sempre em tickets (o que é a intenção).
+                # Se 'custo_real_gasto' pode ser de outra moeda, essa lógica de débito precisa de ajuste.
+                # Assumindo que 'custo_real_gasto' no objeto 'compra_atual' é sempre o valor em tickets a ser debitado:
+                if isinstance(custo_a_debitar_nesta_compra, (int, float)) and custo_a_debitar_nesta_compra > 0 :
+                    tickets_acumulados_para_compra_liquido -= custo_a_debitar_nesta_compra
+                    log.debug(f"  -> Custo de {custo_a_debitar_nesta_compra}T deduzido para '{compra_atual['name']}'. Saldo líquido agora: {tickets_acumulados_para_compra_liquido}")
+                elif isinstance(custo_a_debitar_nesta_compra, (int, float)) and custo_a_debitar_nesta_compra == 0 and item_comprado_data_loja_loop.get("currency") == "ticket":
+                    log.debug(f"  -> Custo de 0T (já incluso anteriormente ou item de desbloqueio) para '{compra_atual['name']}'. Saldo líquido: {tickets_acumulados_para_compra_liquido}")
+
             idx_proxima_compra_usuario += 1
 
-
-        # --- 2. Calcular Bônus Detalhado com base nos bônus ATIVOS AGORA ---
+        # 2. Calcular bônus detalhado com base nos bônus ATIVOS AGORA
         lista_bonus_detalhado_dia_temp = []
-        for nome_buff_ativo in bonus_ativos_simulacao_nomes: #
+        for nome_buff_ativo in bonus_ativos_simulacao_nomes:
             definicao_buff = config.SEASONAL_DELIVERY_BUFFS.get(nome_buff_ativo) #
             if not definicao_buff: continue
-            valor_bonus_individual_do_buff = definicao_buff.get("bonus_value", 0)
-            if valor_bonus_individual_do_buff == 0: continue
+            
+            valor_bonus_individual = definicao_buff.get("bonus_value", 0)
+            if valor_bonus_individual == 0: continue
             nome_display_buff = nome_buff_ativo.replace("_", " ").title()
 
-            if ganhos_atividades_ativos: #
-                bonus_entregas_calc = num_npcs_entrega_tickets * valor_bonus_individual_do_buff
+            if ganhos_atividades_ativos:
+                bonus_entregas_calc = num_npcs_entrega_tickets * valor_bonus_individual
                 if bonus_entregas_calc > 0:
                     lista_bonus_detalhado_dia_temp.append({"fonte": f"{nome_display_buff} (Entregas)", "valor": bonus_entregas_calc})
             
-            if dia_atual_loop.weekday() == dia_reset_semanal and ganhos_atividades_ativos: #
+            if dia_da_semana_num == dia_reset_semanal and ganhos_atividades_ativos:
                 regras_chores = config.ACTIVITY_BONUS_RULES.get("chores", {}) #
                 if nome_buff_ativo in regras_chores.get("applicable_bonuses", []):
-                    bonus_chores_calc = num_chores_semanais_componentes * valor_bonus_individual_do_buff
+                    bonus_chores_calc = num_chores_semanais_componentes * valor_bonus_individual
                     if bonus_chores_calc > 0:
                          lista_bonus_detalhado_dia_temp.append({"fonte": f"{nome_display_buff} (Chores)", "valor": bonus_chores_calc})
 
                 regras_bounties = config.ACTIVITY_BONUS_RULES.get("generic_mega_board_bounties", {}) #
                 if nome_buff_ativo in regras_bounties.get("applicable_bonuses", []):
-                    bonus_bounties_calc = num_bounties_semanais_componentes * valor_bonus_individual_do_buff
+                    bonus_bounties_calc = num_bounties_semanais_componentes * valor_bonus_individual
                     if bonus_bounties_calc > 0:
                         lista_bonus_detalhado_dia_temp.append({"fonte": f"{nome_display_buff} (Bounties)", "valor": bonus_bounties_calc})
         
-        is_double_delivery_today = ganhos_atividades_ativos and (dia_atual_loop.date() in double_delivery_dates_in_season) #
+        is_double_delivery_today = ganhos_atividades_ativos and (dia_atual_loop.date() in double_delivery_dates_in_season)
         if is_double_delivery_today:
-            if "Double Delivery!" not in tickets_do_dia["evento_especial"]: tickets_do_dia["evento_especial"].append("Double Delivery!")
+            tickets_do_dia["eventos_do_dia_list"].append("Double Delivery!")
             for item_bonus_detalhe in lista_bonus_detalhado_dia_temp:
-                if "Entregas" in item_bonus_detalhe["fonte"]: item_bonus_detalhe["valor"] *= 2
+                if "Entregas" in item_bonus_detalhe["fonte"]: 
+                    item_bonus_detalhe["valor"] *= 2 # Dobra o bônus específico de entregas
         
         tickets_do_dia["bonus_diario_detalhado_display"] = lista_bonus_detalhado_dia_temp
         tickets_do_dia["total_bonus_diario_display"] = sum(b['valor'] for b in lista_bonus_detalhado_dia_temp)
 
-        # --- 3. Calcular Ganhos Base do Dia ---
-        tickets_do_dia["tickets_bau"] = tickets_bau_diario #
+        # 3. Calcular ganhos base do dia e adicionar eventos
+        tickets_do_dia["tickets_bau"] = tickets_bau_diario
         current_base_entregas_hoje = 0
         current_base_bounties_hoje = 0
         current_base_chores_hoje = 0
 
-        if ganhos_atividades_ativos: #
-            current_base_entregas_hoje = base_total_entregas_dia * 2 if is_double_delivery_today else base_total_entregas_dia
-            if dia_atual_loop.weekday() == dia_reset_semanal: #
+        if ganhos_atividades_ativos:
+            # Ganhos de entrega são diários, dobrados se for dia de evento
+            base_entregas_este_dia = base_total_entregas_dia * 2 if is_double_delivery_today else base_total_entregas_dia
+            current_base_entregas_hoje = base_entregas_este_dia
+            
+            if dia_da_semana_num == dia_reset_semanal:
                 current_base_bounties_hoje = base_semanal_bounties
                 current_base_chores_hoje = base_semanal_chores
-                if "Reset Semanal" not in tickets_do_dia["evento_especial"]: tickets_do_dia["evento_especial"].append("Reset Semanal")
+                tickets_do_dia["eventos_do_dia_list"].append("Reset Semanal")
         else:
-            if "Pré-atividades" not in tickets_do_dia["evento_especial"]: tickets_do_dia["evento_especial"].append("Pré-atividades")
+            tickets_do_dia["eventos_do_dia_list"].append("Pré-atividades")
         
         tickets_do_dia["tickets_entregas_base_display"] = current_base_entregas_hoje
         tickets_do_dia["tickets_bounties_base_display"] = current_base_bounties_hoje
         tickets_do_dia["tickets_chores_base_display"] = current_base_chores_hoje
 
-        # --- 4. Calcular Total Ganho no Dia e Adicionar aos Acumulados ---
+        # 4. Calcular total ganho no dia e atualizar acumulados
         total_ganho_bruto_dia = (
-            tickets_do_dia["tickets_entregas_base_display"] +
-            tickets_do_dia["tickets_bounties_base_display"] +
-            tickets_do_dia["tickets_chores_base_display"] +
-            tickets_do_dia["total_bonus_diario_display"] +
-            tickets_do_dia["tickets_bau"]
+            current_base_entregas_hoje +
+            current_base_bounties_hoje +
+            current_base_chores_hoje +
+            tickets_do_dia["total_bonus_diario_display"] + # Bônus já considera o double delivery para entregas
+            tickets_bau_diario
         )
         tickets_do_dia["total_tickets_dia"] = total_ganho_bruto_dia
         
         tickets_acumulados_brutos_temporada += total_ganho_bruto_dia
-        tickets_acumulados_para_compra_liquido += total_ganho_bruto_dia 
+        tickets_acumulados_para_compra_liquido += total_ganho_bruto_dia
         
-        # --- 5. Deduzir Custo da Compra Simulada que ocorreu NESTE dia (se houver e for de ticket) ---
-        if compra_efetuada_neste_dia_detalhes:
-            item_comprado_data_loja = config.SEASONAL_SHOP_ITEMS.get(compra_efetuada_neste_dia_detalhes["name"]) #
-            if item_comprado_data_loja and item_comprado_data_loja.get("currency") == "ticket":
-                custo_gasto_real_neste_dia = compra_efetuada_neste_dia_detalhes.get("custo_real_gasto", 0)
-                tickets_acumulados_para_compra_liquido -= custo_gasto_real_neste_dia
-                log.debug(f"  -> Custo de {custo_gasto_real_neste_dia}T deduzido para '{compra_efetuada_neste_dia_detalhes['name']}' no dia {data_atual_str}. Saldo p/ compra: {tickets_acumulados_para_compra_liquido}")
-
+        # Atribui saldos finais do dia
         tickets_do_dia["tickets_acumulados_brutos"] = tickets_acumulados_brutos_temporada
         tickets_do_dia["tickets_liquidos_compra"] = tickets_acumulados_para_compra_liquido
         
-        if not tickets_do_dia["evento_especial"]:
-            tickets_do_dia["evento_especial"] = None
-        else:
-            if "Pré-atividades" in tickets_do_dia["evento_especial"] and len(tickets_do_dia["evento_especial"]) > 1:
-                tickets_do_dia["evento_especial"].remove("Pré-atividades")
-            tickets_do_dia["evento_especial"] = " | ".join(sorted(list(set(tickets_do_dia["evento_especial"]))))
-
+        # 5. Formatar a lista final para exibição (eventos + compras)
+        eventos_compras_finais_para_js = []
+        if tickets_do_dia["eventos_do_dia_list"]:
+            eventos_compras_finais_para_js.extend(sorted(list(set(tickets_do_dia["eventos_do_dia_list"]))))
+        if tickets_do_dia["compras_do_dia_list"]:
+            eventos_compras_finais_para_js.extend(tickets_do_dia["compras_do_dia_list"])
+        
+        if "Pré-atividades" in eventos_compras_finais_para_js and len(eventos_compras_finais_para_js) > 1:
+            eventos_compras_finais_para_js = [e for e in eventos_compras_finais_para_js if e != "Pré-atividades"]
+        
+        tickets_do_dia["eventos_compras_display_final"] = eventos_compras_finais_para_js if eventos_compras_finais_para_js else None
+        
         dados_calendario.append(tickets_do_dia)
         dia_atual_loop += timedelta(days=1)
         
-    log.info(f"FIM V3.3: gerar_dados_calendario_sazonal - Total de dias processados: {len(dados_calendario)}")
+    log.info(f"Geração do calendário sazonal concluída. Total de dias processados: {len(dados_calendario)}")
     return dados_calendario
 # ---> FIM CALENADRIO SAZONAL <---
 

@@ -323,7 +323,7 @@ $(document).ready(function() {
         summaryContainer.empty();
 
         $.ajax({
-            url: '/get_seasonal_calendar', //
+            url: '/get_seasonal_calendar',
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ vip: vipActiveForSim, compras_simuladas: comprasSimuladasPeloUsuarioJS }),
@@ -332,7 +332,8 @@ $(document).ready(function() {
                 calendarContainer.find('#calendar-loading-placeholder').remove();
                 if (response.success) {
                     const calendarData = response.calendar_data;
-                    const tokenName = response.token_name || 'Tokens';
+                    const tokenName = response.token_name || 'Tokens'; // Usado no título do badge de compra, se necessário
+                    
                     if (calendarData && calendarData.length > 0) {
                         if (calendarData[0].erro) {
                             calendarContainer.html(`<p class="text-danger text-center mt-3">Erro: ${calendarData[0].erro}</p>`);
@@ -354,28 +355,17 @@ $(document).ready(function() {
                                     <th style="min-width: 200px; vertical-align: middle;">Eventos / Compras Simuladas</th>
                                 </tr>
                             </thead><tbody>`;
+                        
                         let grandTotalTicketsBruto = 0;
+
                         calendarData.forEach(function(day) {
-                            let eventText = day.evento_especial || '';
-                            let compraBadge = '';
                             let rowClass = '';
-                            if (day.compra_simulada_item) {
-                                let itemNameOnly = day.compra_simulada_item.split(' (Custo:')[0];
-                                compraBadge = `<span class="badge bg-success-subtle text-success-emphasis rounded-pill d-block" title="Custo Total Simulado: ${day.custo_compra_simulada} ${tokenName}">Adquiriu: ${itemNameOnly}</span>`;
+                            // Verifica se há alguma compra neste dia para aplicar a classe de destaque na linha
+                            if (day.compras_do_dia_list && day.compras_do_dia_list.length > 0) {
                                 rowClass = 'table-light font-monospace';
                             }
-                            let eventBadges = [];
-                            if (eventText) {
-                                const events = eventText.split(' | ');
-                                events.forEach(ev => {
-                                    if (ev.includes('Double Delivery!')) eventBadges.push('<span class="badge bg-danger-subtle text-danger-emphasis rounded-pill d-block mb-1">Double Delivery!</span>');
-                                    else if (ev.includes('Reset Semanal')) eventBadges.push('<span class="badge bg-warning-subtle text-warning-emphasis rounded-pill d-block mb-1">Reset Semanal</span>');
-                                    else if (ev.includes('Pré-atividades')) eventBadges.push('<span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill d-block mb-1">Pré-atividades</span>');
-                                });
-                            }
-                            if (compraBadge) eventBadges.push(compraBadge);
-                            let finalEventDisplay = eventBadges.join('') || '<span class="text-muted small">-</span>';
 
+                            // Coluna: Bônus Detalhado Dia
                             let bonusDetailHtml = '<div style="font-size: 0.7rem; line-height: 1.2;">';
                             if (day.bonus_diario_detalhado_display && day.bonus_diario_detalhado_display.length > 0) {
                                 bonusDetailHtml += '<ul class="list-unstyled mb-0">';
@@ -386,6 +376,33 @@ $(document).ready(function() {
                             }
                             bonusDetailHtml += '</div>';
 
+                            // Coluna: Eventos / Compras Simuladas
+                            let cellDisplayItemsHTML = [];
+                            // Usa a nova chave 'eventos_compras_display_final' que é uma lista de strings
+                            if (day.eventos_compras_display_final && Array.isArray(day.eventos_compras_display_final)) {
+                                day.eventos_compras_display_final.forEach(text_string => {
+                                    let badgeClass = 'bg-light text-dark border'; // Badge padrão para texto genérico
+                                    let titleAttr = '';
+
+                                    if (text_string.startsWith('Adquiriu:')) {
+                                        badgeClass = 'bg-success-subtle text-success-emphasis';
+                                        titleAttr = 'Item Simulado';
+                                    } else if (text_string.includes('Double Delivery!')) {
+                                        badgeClass = 'bg-danger-subtle text-danger-emphasis';
+                                    } else if (text_string.includes('Reset Semanal')) {
+                                        badgeClass = 'bg-warning-subtle text-warning-emphasis';
+                                    } else if (text_string.includes('Pré-atividades')) {
+                                        badgeClass = 'bg-secondary-subtle text-secondary-emphasis';
+                                    }
+                                    // Adiciona d-block mb-1 para empilhar os badges
+                                    cellDisplayItemsHTML.push(
+                                        `<span class="badge ${badgeClass} rounded-pill d-block mb-1" title="${titleAttr}">${text_string}</span>`
+                                    );
+                                });
+                            }
+                            let finalEventDisplayContent = cellDisplayItemsHTML.length > 0 ? cellDisplayItemsHTML.join('') : '<span class="text-muted small">-</span>';
+
+                            // Construção da linha da tabela
                             tableHtml += `<tr class="${rowClass}" data-date-value="${day.data}">`;
                             tableHtml += `<td class="text-nowrap">${day.data_display}</td>`;
                             tableHtml += `<td class="text-end">${day.tickets_entregas_base_display || 0}</td>`;
@@ -396,13 +413,15 @@ $(document).ready(function() {
                             tableHtml += `<td class="text-end fw-bold table-secondary">${day.total_tickets_dia}</td>`;
                             tableHtml += `<td class="text-end table-light fw-medium">${day.tickets_acumulados_brutos}</td>`;
                             tableHtml += `<td class="text-end text-muted" style="font-size:0.7rem;">${day.tickets_liquidos_compra}</td>`;
-                            tableHtml += `<td><div style="min-width: 180px; font-size: 0.75rem;">${finalEventDisplay}</div></td>`;
+                            tableHtml += `<td><div style="min-width: 180px; font-size: 0.75rem;">${finalEventDisplayContent}</div></td>`;
                             tableHtml += '</tr>';
+                            
                             grandTotalTicketsBruto = day.tickets_acumulados_brutos;
                         });
                         tableHtml += '</tbody></table>';
                         calendarContainer.html(tableHtml);
 
+                        // Reanexar handlers de drag-and-drop para as novas linhas da tabela
                         $('#seasonal-calendar-container table tbody tr').on('dragover', function(event) { event.preventDefault(); $(this).addClass('calendar-drop-hover'); });
                         $('#seasonal-calendar-container table tbody tr').on('dragleave', function() { $(this).removeClass('calendar-drop-hover'); });
                         $('#seasonal-calendar-container table tbody tr').on('drop', function(event) {
@@ -412,171 +431,182 @@ $(document).ready(function() {
                             const droppedItemData = JSON.parse(droppedItemDataString);
                             const targetDate = $(this).data('date-value');
                             if (!targetDate) { alert("Erro: Data alvo não encontrada."); return; }
-                            handleSimulatedPurchase(droppedItemData, targetDate);
+                            handleSimulatedPurchase(droppedItemData, targetDate); // handleSimulatedPurchase permanece como está
                         });
 
                         let summaryText = `Potencial máximo bruto total de <strong>${grandTotalTicketsBruto}</strong> ${tokenName} na temporada (${response.season_start} a ${response.season_end}). Simulado com VIP ${response.vip_simulated ? '<strong>ATIVO</strong>' : '<strong>INATIVO</strong>'}.`;
                         summaryContainer.html(summaryText);
-                    } else { calendarContainer.html('<p class="text-warning text-center mt-3">Nenhum dado para exibir.</p>'); }
-                } else { calendarContainer.html(`<p class="text-danger text-center mt-3">Erro: ${response.error || 'Falha.'}</p>`); }
+                    } else { 
+                        calendarContainer.html('<p class="text-warning text-center mt-3">Nenhum dado para exibir.</p>'); 
+                    }
+                } else { 
+                    calendarContainer.html(`<p class="text-danger text-center mt-3">Erro: ${response.error || 'Falha ao carregar dados do calendário.'}</p>`); 
+                }
             },
-            error: function() { calendarContainer.html('<p class="text-danger text-center mt-3">Erro de conexão.</p>'); }
+            error: function() { 
+                calendarContainer.html('<p class="text-danger text-center mt-3">Erro de conexão ao carregar o calendário.</p>'); 
+            }
         });
     }); // o> Fim do #load-calendar-btn handler
 
     function handleSimulatedPurchase(itemData, targetDate) {
-    // console.log("[JS-SIM] Iniciando simulação de compra para:", itemData, "na data:", targetDate);
+    // itemData é o objeto do item arrastado
+    // targetDate é a string da data onde o item foi solto (ex: "2025-05-05")
 
-    // Envia NOMES de TODOS os itens já "comprados" na simulação atual,
-    // independentemente da moeda, para que o backend possa calcular o desbloqueio de tier corretamente.
-    const allPreviouslyPurchasedItemNames = comprasSimuladasPeloUsuarioJS.map(compra => compra.name);
-
+    console.log("[JS-SIM] handleSimulatedPurchase - itemData:", itemData);
+    console.log("[JS-SIM] handleSimulatedPurchase - itemData.name:", itemData ? itemData.name : "itemData is null");
+    console.log("[JS-SIM] handleSimulatedPurchase - targetDate:", targetDate);
+    
+    // Prepara o payload para o backend
+    // Envia a lista completa de compras simuladas atuais e a data alvo
+    const payload = {
+        item_name: itemData.name,
+        simulated_purchases_up_to_date: comprasSimuladasPeloUsuarioJS, 
+        target_date_for_unlock_check: targetDate 
+    };
+    console.log("[JS-SIM] handleSimulatedPurchase - Payload a ser enviado:", payload); // Log do payload completo
     $.ajax({
         url: '/calculate_purchase_details_for_calendar',
         type: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({
-            item_name: itemData.name,
-            previously_purchased_item_names: Array.from(new Set(allPreviouslyPurchasedItemNames)) // Usa a lista completa
-        }),
+        data: JSON.stringify(payload), // Usa o payload corrigido
         dataType: 'json',
         success: function(detailsResponse) {
-        console.log("[JS-SIM-DETAILS] Resposta de detalhes da compra:", detailsResponse);
-        if (detailsResponse.success) {
-            const { item_name, total_cost, currency, tier, unlock_cost, unlock_items_details, token_name } = detailsResponse;
-            // total_cost aqui será o custo na moeda do item, ou o custo total em tickets se o item for de ticket.
-            // unlock_cost é o custo de desbloqueio APENAS EM TICKETS.
+            console.log("[JS-SIM-DETAILS] Resposta de detalhes da compra:", detailsResponse);
+            if (detailsResponse.success) {
+                const { 
+                    item_name, // Nome do item principal confirmado pelo backend
+                    // item_cost_original, // Custo do item principal na sua moeda (vem de 'total_cost' se não ticket, ou do config)
+                    total_cost, // Custo principal para exibir no diálogo (pode ser custo do item ou custo total em tickets)
+                    currency, 
+                    tier, 
+                    unlock_cost_tickets, 
+                    unlock_items_details, 
+                    token_name,
+                    total_tickets_to_debit, // O que realmente será debitado em tickets
+                    is_tier_unlockable 
+                } = detailsResponse;
 
-            let displayCost = total_cost === null ? "N/A" : total_cost;
-            let displayCurrency = currency ? currency.toUpperCase() : '?';
-            if (currency === 'ticket' && total_cost === null) {
-                displayCost = "Impossível/N/A"; // Se for ticket e o custo for null (ex: impossível desbloquear)
-            }
+                let confirmMsg = `Simular aquisição de "${item_name}" (Tier ${tier || 'N/A'})`;
+                let costStringForDialog = "";
 
-
-            let confirmMsg = `Simular aquisição de "${item_name}" (Tier ${tier || 'N/A'})`;
-            if (currency === 'ticket') { // Item é de ticket
-                confirmMsg += ` por um custo total estimado de ${displayCost} ${token_name}?`;
-                if (unlock_cost !== null && unlock_cost > 0 && unlock_items_details && unlock_items_details.length > 0) {
-                    // MODIFICAÇÃO AQUI para formatar corretamente a lista de itens
-                    const unlockItemsStrings = unlock_items_details.map(itemDetail => {
-                        return `<span class="math-inline">\{itemDetail\.name\} \(</span>{itemDetail.cost}${token_name.substring(0,1)})`; // Ex: "Embersteel Suit (50G)"
-                    });
-                    const unlockItemNamesAndCosts = unlockItemsStrings.join(', '); // Junta com vírgula
-
-                    if (unlockItemNamesAndCosts) {
-                        confirmMsg += `\n\nItens de ${token_name} para desbloqueio incluídos no custo: ${unlockItemNamesAndCosts}.`;
+                // Constrói a string de custo para o diálogo de confirmação
+                if (total_cost !== null) { // 'total_cost' do JSON é o 'json_cost_for_dialog' do backend
+                    costStringForDialog = `${total_cost} ${currency ? currency.toUpperCase() : '?'}`;
+                    if (currency === 'ticket' && total_tickets_to_debit !== total_cost) {
+                         // Caso especial: item é de ticket, mas total_cost (para diálogo) pode ser só o item
+                         // e total_tickets_to_debit inclui desbloqueio.
+                         // A lógica do backend já deve ter tornado 'total_cost' (para diálogo) o valor final em tickets se o item é de ticket.
                     }
-                } else if (unlock_cost === 0 && tier > 1 && total_cost !== null) {
-                    confirmMsg += `\n\n(Desbloqueio de tier já satisfeito ou item é T1).`;
+                } else { // total_cost é null (geralmente se is_tier_unlockable é false)
+                    costStringForDialog = `N/A (Tier ${tier} não desbloqueável)`;
                 }
-            }
+                confirmMsg += ` por ${costStringForDialog}?`;
+                
+                // Adiciona detalhes sobre o desbloqueio do tier
+                if (tier > 1) {
+                    if (!is_tier_unlockable) {
+                        confirmMsg += `\n\nATENÇÃO: O Tier ${tier} não pode ser desbloqueado!`;
+                        if (unlock_items_details && unlock_items_details.length > 0) {
+                             const unlockItemsStrings = unlock_items_details.map(itemDetail => 
+                                `${itemDetail.name} (${itemDetail.cost}${token_name.substring(0,1)})`
+                            );
+                            confirmMsg += `\nSeriam necessários (mas não há como obter todos): ${unlockItemsStrings.join(', ')}.`;
+                        } else if (unlock_cost_tickets === null && tier > 1) { 
+                             confirmMsg += `\nNão há itens de ${token_name} suficientes nos tiers anteriores para comprar e desbloquear este tier.`;
+                        }
+                    } else if (unlock_cost_tickets !== null && unlock_cost_tickets > 0) {
+                        const unlockItemsStrings = unlock_items_details.map(itemDetail => 
+                            `${itemDetail.name} (${itemDetail.cost}${token_name.substring(0,1)})`
+                        );
+                        if (currency === 'ticket') { // Item principal é de ticket
+                            confirmMsg += `\n\nItens de ${token_name} para desbloqueio (custo já incluído no total acima): ${unlockItemsStrings.join(', ')}.`;
+                        } else { // Item principal não é de ticket
+                            confirmMsg += `\n\nPara liberar este Tier, também é necessário adquirir (será simulado se confirmar): ${unlockItemsStrings.join(', ')} (Custo total desbloqueio: ${unlock_cost_tickets} ${token_name}).`;
+                        }
+                    } else if (is_tier_unlockable && (unlock_cost_tickets === 0 || unlock_cost_tickets === null) ) {
+                         confirmMsg += `\n\n(Desbloqueio de Tier ${tier} já satisfeito ou não requer custo adicional em ${token_name}).`;
+                    }
+                }
+                
+                // Permitir confirmação APENAS se o tier for desbloqueável
+                if (is_tier_unlockable && confirm(confirmMsg)) {
+                    const buffKey = itemData.buff_source_key || getBuffSourceKeyForItem(item_name); // Usa item_name da resposta
+                    let novasComprasParaAdicionar = [];
 
-            // Adicionar uma nota se o custo for N/A, mesmo para itens não-ticket (se total_cost for null)
-            if (total_cost === null && currency !== 'ticket') {
-                confirmMsg += `\n(Nota: O custo de aquisição deste item não pôde ser determinado, mas ele não usa ${token_name}.)`;
-            }
+                    // Adiciona o item principal que foi arrastado
+                    novasComprasParaAdicionar.push({
+                        name: item_name, 
+                        data_compra: targetDate,
+                        // custo_real_gasto é o 'total_tickets_to_debit' se o item principal for de ticket,
+                        // ou 0 se o item principal não for de ticket (pois seu custo é em outra moeda).
+                        custo_real_gasto: (currency === 'ticket' && total_tickets_to_debit !== null) ? total_tickets_to_debit : 0,
+                        buff_source_key: buffKey,
+                        // display_cost_in_badge: (currency === 'ticket' && total_tickets_to_debit !== null) ? total_tickets_to_debit : item_cost_original // Para o Ponto 2
+                    });
 
+                    // Adiciona os itens de DESBLOQUEIO DE TIER (que são sempre de ticket)
+                    // O custo deles só é debitado se o item principal NÃO FOR DE TICKET.
+                    // Se o item principal FOR DE TICKET, o custo de desbloqueio já está em 'total_tickets_to_debit'.
+                    if (unlock_cost_tickets !== null && unlock_cost_tickets > 0 && unlock_items_details && unlock_items_details.length > 0) {
+                        unlock_items_details.forEach(unlockItem => {
+                            if (unlockItem.currency === 'ticket' && unlockItem.cost > 0) { 
+                                if (unlockItem.name !== item_name && 
+                                    !comprasSimuladasPeloUsuarioJS.some(c => c.name === unlockItem.name && c.data_compra === targetDate)) {
+                                    
+                                     let custoRealDebitadoParaItemDesbloqueio = 0;
+                                    if (currency !== 'ticket') { // Se o item principal NÃO é de ticket
+                                        custoRealDebitadoParaItemDesbloqueio = unlockItem.cost;
+                                    }
+                                    // Se o item principal é de ticket, custoRealDebitadoParaItemDesbloqueio permanece 0
 
-            if (confirm(confirmMsg)) {
-                const buffKey = itemData.buff_source_key || getBuffSourceKeyForItem(itemData.name);
-
-                let novasComprasParaAdicionar = [];
-
-                // Adiciona o item principal que foi arrastado
-                novasComprasParaAdicionar.push({
-                    name: item_name, // Usar item_name da detailsResponse
-                    data_compra: targetDate,
-                    // custo_real_gasto é o valor que será DEBITADO do saldo de tickets.
-                    // Se o item não é de ticket, seu custo em tickets é 0.
-                    custo_real_gasto: (currency === 'ticket' && total_cost !== null) ? total_cost : 0,
-                    buff_source_key: buffKey 
-                });
-
-                // Adiciona os itens de DESBLOQUEIO APENAS SE o item principal NÃO for de ticket,
-                // OU se o item principal FOR de ticket e os itens de desbloqueio já estão incluídos no seu 'total_cost'.
-                // A lógica atual no backend (calcular_custo_total_item) já retorna 'unlock_items_details'
-                // que são os itens de TICKET usados para o desbloqueio.
-                // Estes já tiveram seu custo somado ao 'total_cost' se o item principal é de ticket.
-                // Se o item principal NÃO é de ticket, mas o usuário quer simular a sua aquisição
-                // e isso implica em desbloquear o tier com itens de ticket, esses itens de desbloqueio
-                // devem ser adicionados separadamente à simulação com seus respectivos custos em tickets.
-
-                if (currency !== 'ticket' && unlock_items_details && unlock_items_details.length > 0 && unlock_cost !== null && unlock_cost > 0) {
-                    console.log(`[JS-SIM] Item alvo '${item_name}' não é de ticket. Adicionando ${unlock_items_details.length} itens de desbloqueio (custo total tickets: ${unlock_cost}) à simulação.`);
-                    unlock_items_details.forEach(unlockItem => {
-                        if (unlockItem.currency === 'ticket' && unlockItem.cost > 0) { // Garantir que só adicionamos itens de ticket com custo > 0
-                            // Evitar adicionar o próprio item alvo novamente se ele aparecer na lista de desbloqueio (improvável)
-                            if (unlockItem.name !== item_name && 
-                                !comprasSimuladasPeloUsuarioJS.some(c => c.name === unlockItem.name && c.data_compra === targetDate)) {
-                                novasComprasParaAdicionar.push({
-                                    name: unlockItem.name,
-                                    data_compra: targetDate, 
-                                    custo_real_gasto: unlockItem.cost, 
-                                    buff_source_key: getBuffSourceKeyForItem(unlockItem.name)
-                                });
-                                console.log(`[JS-SIM]  -> Adicionando item de desbloqueio: ${unlockItem.name}, Custo: ${unlockItem.cost}T`);
+                                    novasComprasParaAdicionar.push({
+                                        name: unlockItem.name,
+                                        data_compra: targetDate, 
+                                        custo_real_gasto: custoRealDebitadoParaItemDesbloqueio, 
+                                        buff_source_key: getBuffSourceKeyForItem(unlockItem.name),
+                                        original_cost_for_display: unlockItem.cost // NOVA PROPRIEDADE
+                                    });
+                                     console.log(`[JS-SIM] -> Adicionando/Registrando item de desbloqueio: ${unlockItem.name}, Custo REAL DEBITADO: ${custoRealDebitadoParaItemDesbloqueio}T`);
+                                }
                             }
-                        }
-                    });
-                } else if (currency === 'ticket' && unlock_items_details && unlock_items_details.length > 0 && unlock_cost !== null && unlock_cost > 0) {
-                    // Se o item principal é de TICKET, os itens de desbloqueio em 'unlock_items_details' JÁ compõem o 'total_cost' do item principal.
-                    // Eles são importantes para a simulação para que o backend saiba que foram "adquiridos" para fins de desbloqueio de tiers futuros,
-                    // mas seu custo individual não deve ser debitado NOVAMENTE.
-                    // Apenas precisamos garantir que eles sejam registrados como "comprados" para o cálculo de desbloqueio de itens subsequentes.
-                    // O 'custo_real_gasto' deles aqui deve ser 0 para não serem duplamente contados no débito.
-                    // No entanto, eles precisam ser adicionados a `comprasSimuladasPeloUsuarioJS` para que `previously_purchased_item_names`
-                    // no backend esteja correto para futuras chamadas a `calculate_purchase_details_for_calendar`.
-                    console.log(`[JS-SIM] Item alvo '${item_name}' é de ticket. Itens de desbloqueio (custo já incluso no total): ${unlock_items_details.length}`);
-                    unlock_items_details.forEach(unlockItem => {
-                        if (unlockItem.name !== item_name && 
-                            !comprasSimuladasPeloUsuarioJS.some(c => c.name === unlockItem.name && c.data_compra === targetDate)) {
-                            novasComprasParaAdicionar.push({
-                                name: unlockItem.name,
-                                data_compra: targetDate, 
-                                custo_real_gasto: 0, // Custo já contabilizado no item principal
-                                buff_source_key: getBuffSourceKeyForItem(unlockItem.name) // Adiciona buff se houver
-                            });
-                            console.log(`[JS-SIM]  -> Registrando item de desbloqueio (sem custo adicional debitado): ${unlockItem.name}`);
-                        }
-                    });
-                }
-
-                // Adiciona as novas compras à lista global
-                novasComprasParaAdicionar.forEach(novaCompra => {
-                    const compraExistenteIndex = comprasSimuladasPeloUsuarioJS.findIndex(
-                        c => c.name === novaCompra.name && c.data_compra === novaCompra.data_compra
-                    );
-                    if (compraExistenteIndex === -1) {
-                        comprasSimuladasPeloUsuarioJS.push(novaCompra);
-                    } else {
-                        console.warn(`[JS-SIM] Tentativa de adicionar compra duplicada no mesmo dia: ${novaCompra.name} em ${novaCompra.data_compra}. Substituindo/Atualizando.`);
-                        // Se precisar atualizar (ex: se o custo mudou ou buff_source_key), pode fazer aqui:
-                        // comprasSimuladasPeloUsuarioJS[compraExistenteIndex] = novaCompra;
-                        // Por ora, vamos manter a primeira ocorrência ou a mais recente, dependendo da necessidade.
-                        // Para simplificar, se já existe, não faz nada, assumindo que a primeira simulação para aquele item/data é a válida.
-                        // Ou, se a intenção é permitir "re-simular" um item para uma data, a lógica de atualização seria aqui.
-                        // Dado o fluxo, é mais provável que queiramos evitar duplicatas exatas.
+                        });
                     }
-                });
+                    
+                    novasComprasParaAdicionar.forEach(novaCompra => {
+                        const compraExistenteIndex = comprasSimuladasPeloUsuarioJS.findIndex(
+                            c => c.name === novaCompra.name && c.data_compra === novaCompra.data_compra
+                        );
+                        if (compraExistenteIndex === -1) {
+                            comprasSimuladasPeloUsuarioJS.push(novaCompra);
+                        } else {
+                            // Lógica para lidar com duplicatas se necessário (ex: substituir)
+                            // Por agora, para evitar confusão, se já existe na mesma data, não adiciona de novo.
+                            console.warn(`[JS-SIM] Tentativa de adicionar ${novaCompra.name} novamente em ${novaCompra.data_compra}. Ignorando para evitar duplicata exata na lista de simulação.`);
+                        }
+                    });
+                    
+                    comprasSimuladasPeloUsuarioJS.sort((a, b) => new Date(a.data_compra) - new Date(b.data_compra));
+                    console.log("[JS-SIM] Lista de compras simuladas atualizada:", comprasSimuladasPeloUsuarioJS);
+                    $('#load-calendar-btn').trigger('click');
 
-                comprasSimuladasPeloUsuarioJS.sort((a, b) => new Date(a.data_compra) - new Date(b.data_compra));
-                console.log("[JS-SIM] Lista de compras simuladas atualizada:", comprasSimuladasPeloUsuarioJS);
-                $('#load-calendar-btn').trigger('click'); // Recarrega o calendário
+                } else if (!is_tier_unlockable) {
+                    alert(confirmMsg); 
+                    console.log(`[JS-SIM] Simulação de '${item_name}' impedida: Tier não desbloqueável.`);
+                } else {
+                    console.log("[JS-SIM] Compra cancelada pelo usuário.");
+                }
             } else {
-                // console.log("[JS-SIM] Compra cancelada pelo usuário.");
+                let errorMsg = "[JS-SIM-DETAILS] Resposta de detalhes não foi sucesso";
+                if(detailsResponse && detailsResponse.error) errorMsg += ": " + detailsResponse.error;
+                console.error(errorMsg, detailsResponse);
+                alert(`Erro ao obter detalhes da compra: ${ (detailsResponse && detailsResponse.error) || 'Resposta inválida do servidor.'}`);
             }
-        } else {
-            let errorMsg = "[JS-SIM-DETAILS] Resposta de detalhes não foi sucesso";
-            if(detailsResponse && detailsResponse.error) errorMsg += ": " + detailsResponse.error;
-            console.error(errorMsg, detailsResponse);
-            alert(`Erro ao obter detalhes da compra: ${ (detailsResponse && detailsResponse.error) || 'Resposta inválida do servidor.'}`);
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error("[JS-SIM-DETAILS] Erro AJAX em detalhes da compra:", textStatus, errorThrown, jqXHR.status, jqXHR.responseText);
+            alert("Erro de comunicação (ver console) ao tentar obter detalhes da compra. Tente novamente.");
         }
-    },
-    error: function(jqXHR, textStatus, errorThrown) {
-        console.error("[JS-SIM-DETAILS] Erro AJAX em detalhes da compra:", textStatus, errorThrown, jqXHR.status, jqXHR.responseText);
-        alert("Erro de comunicação (ver console) ao tentar obter detalhes da compra. Tente novamente.");
-    }
     });
     }
 }); // Fim $(document).ready geral

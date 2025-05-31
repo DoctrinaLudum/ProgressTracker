@@ -483,24 +483,61 @@ def calculate_remaining_season_days(season_end_date_str: Optional[str], datetime
     except (ValueError, TypeError) as e: logger.error(f"Erro ao parsear SEASON_END_DATE '{season_end_date_str}': {e}"); return None
 
 # --->: GET_PROJECTION_CALCULATION_DETAILS
-def get_projection_calculation_details(item_name: str, shop_items: Dict[str, Any], marked_items: List[str], rate: float, analysis_module: Any, logger: Any) -> Dict[str, Any]:
+def get_projection_calculation_details(item_name: str, 
+                                     shop_items: Dict[str, Any], 
+                                     marked_items: List[str], 
+                                     rate: float, 
+                                     analysis_module: Any, 
+                                     logger: Any) -> Dict[str, Any]:
     results = {
-        "custo_total_calculado": float('inf'), 
-        "custo_item_base": None, 
-        "custo_desbloqueio_calculado": float('inf'), 
-        "unlock_items_detalhados": [], 
-        "unlock_items_list": [], 
-        "dias_projetados": float('inf')
+        "custo_total_calculado_tickets": float('inf'), # O que a loja usará para projetar dias (item de ticket + desbloqueio)
+        "custo_item_base_ticket": None,             # Custo base do item de ticket em si
+        "custo_desbloqueio_tickets": float('inf'), # Custo de desbloqueio em tickets para o tier do item
+        "unlock_items_detalhados": [],
+        "unlock_items_list": [],
+        "dias_projetados": float('inf'),
+        "is_tier_unlockable": False,
+        "item_currency_original": None # Para saber a moeda do item clicado
     }    
     try:
-        cost_info = analysis_module.calcular_custo_total_item(item_name, shop_items, marked_items) #
-        results["custo_total_calculado"] = cost_info.get('total_cost', float('inf'))
-        results["custo_item_base"] = cost_info.get('item_cost') # Permite None se não houver custo base
-        results["custo_desbloqueio_calculado"] = cost_info.get('unlock_cost', float('inf'))
+        cost_info = analysis_module.calcular_custo_total_item(item_name, shop_items, marked_items)
+
+        results["is_tier_unlockable"] = cost_info.get('is_tier_unlockable', False)
+        results["item_currency_original"] = cost_info.get('item_currency_original')
+        results["custo_desbloqueio_tickets"] = cost_info.get('unlock_cost_tickets', float('inf'))
         results["unlock_items_detalhados"] = cost_info.get('unlock_items_details', [])
         results["unlock_items_list"] = [item['name'] for item in results["unlock_items_detalhados"]]
-        if results["custo_total_calculado"] != float('inf'): results["dias_projetados"] = analysis_module.projetar_dias_para_item(results["custo_total_calculado"], rate) #
-    except Exception as e: logger.exception(f"Erro no cálculo da projeção para {item_name}: {e}")
+
+        item_currency = cost_info.get('item_currency_original')
+        
+        if item_currency == 'ticket':
+            # Para itens de ticket, o "custo_total_calculado_tickets" para a loja é o custo do item + desbloqueio
+            results["custo_total_calculado_tickets"] = cost_info.get('total_cost_tickets', float('inf'))
+            results["custo_item_base_ticket"] = cost_info.get('item_cost_original') # Custo base do item de ticket
+        else:
+            # Para itens NÃO-TICKET, a loja não deve projetar "dias para obter" com base em tickets para o item em si.
+            # O custo_total_calculado_tickets (para o item) permanece float('inf').
+            # O custo_item_base_ticket permanece None.
+            # No entanto, o custo_desbloqueio_tickets ainda é relevante e já foi setado.
+            results["custo_total_calculado_tickets"] = float('inf') 
+            results["custo_item_base_ticket"] = None
+            # Se você quisesse mostrar "dias para desbloquear o tier" para um item não-ticket,
+            # você poderia usar results["custo_desbloqueio_tickets"] para calcular os dias,
+            # mas a UI precisaria ser clara sobre o que esses "dias" significam.
+            # Por enquanto, a loja foca em "dias para obter o item de ticket".
+
+        if results["custo_total_calculado_tickets"] != float('inf') and rate > 0:
+            results["dias_projetados"] = analysis_module.projetar_dias_para_item(results["custo_total_calculado_tickets"], rate)
+        else:
+            results["dias_projetados"] = float('inf')
+
+        logger.debug(f"Projeção Loja para '{item_name}' (Moeda: {results['item_currency_original']}): "
+                     f"CustoTotalTickets={results['custo_total_calculado_tickets']}, "
+                     f"DiasProjetados={results['dias_projetados']}, "
+                     f"CustoDesbloqueioTickets={results['custo_desbloqueio_tickets']}")
+
+    except Exception as e:
+        logger.exception(f"Erro no cálculo da projeção (loja) para {item_name}: {e}")
     return results
 
 # --->: GET_CHORES_HISTORICAL_ANALYSIS_RESULTS

@@ -196,6 +196,11 @@ def calculate_projection():
             log
         )
         log.info(f"Resultados Cálculo AJAX para '{item_name}': Custo={projection_details['custo_total_calculado']}, Dias={projection_details['dias_projetados']} (Taxa Usada={rate_to_use})")
+
+        calculated_cost_for_frontend = projection_details.get("custo_total_calculado_tickets")
+        base_item_cost_for_frontend = projection_details.get("custo_item_base_ticket")
+        calculated_unlock_cost_for_frontend = projection_details.get("custo_desbloqueio_tickets")
+
         return jsonify({
             "success": True,
             "item_name": item_name,
@@ -269,52 +274,104 @@ def get_seasonal_calendar():
 def calculate_purchase_details_for_calendar():
     log.info("Requisição POST recebida em /calculate_purchase_details_for_calendar")
     data = request.get_json()
-    if not data or not data.get('item_name'):
+    log.debug(f"Dados brutos recebidos na requisição: {data}")
+
+    item_name_to_evaluate = data.get('item_name') 
+    # Usar as chaves que o JavaScript está enviando (conforme o log)
+    full_simulated_purchases_list = data.get('simulated_purchases_up_to_date', []) 
+    target_date_for_evaluation_str = data.get('target_date_for_unlock_check')    
+
+    if not item_name_to_evaluate:
+        log.error("Erro 400: Nome do item não fornecido na chave 'item_name'.")
         return jsonify({"success": False, "error": "Nome do item não fornecido."}), 400
+    
+    if not target_date_for_evaluation_str:
+        log.error("Erro 400: Data alvo não fornecida na chave 'target_date_for_unlock_check'.")
+        return jsonify({"success": False, "error": "Data alvo para verificação de desbloqueio não fornecida."}), 400
 
-    item_name = data.get('item_name')
-    previously_purchased_item_names = data.get('previously_purchased_item_names', [])
+    item_shop_data_config = GLOBAL_SHOP_ITEMS.get(item_name_to_evaluate)
+    if not item_shop_data_config:
+        log.error(f"Erro 404: Item '{item_name_to_evaluate}' não encontrado na loja.")
+        return jsonify({"success": False, "error": f"Item '{item_name_to_evaluate}' não encontrado na loja."}), 404
 
-    item_shop_data = GLOBAL_SHOP_ITEMS.get(item_name)
-    if not item_shop_data:
-        return jsonify({"success": False, "error": f"Item '{item_name}' não encontrado na loja."}), 404
-
-    moeda = item_shop_data.get('currency')
-    tier = item_shop_data.get('tier')
-
-    cost_info = analysis.calcular_custo_total_item(
-        item_name,
+    # Restante da função permanece o mesmo...
+    # ... (lógica de filtragem, chamada a analysis.calcular_custo_total_item, etc.)
+    purchased_names_before_target_date = set()
+    if full_simulated_purchases_list: 
+        try:
+            target_date_obj = datetime.strptime(target_date_for_evaluation_str, '%Y-%m-%d').date()
+            for compra in full_simulated_purchases_list:
+                compra_date_str = compra.get("data_compra")
+                compra_name = compra.get("name")
+                if compra_date_str and compra_name: 
+                    compra_date_obj = datetime.strptime(compra_date_str, '%Y-%m-%d').date()
+                    if compra_date_obj < target_date_obj: 
+                        if compra_name != item_name_to_evaluate:
+                           purchased_names_before_target_date.add(compra_name)
+        except (ValueError, TypeError) as e:
+            log.error(f"Erro ao processar datas para desbloqueio para '{item_name_to_evaluate}' na data '{target_date_for_evaluation_str}': {e}")
+            return jsonify({"success": False, "error": "Formato de data inválido nas compras simuladas ou data alvo."}), 400
+            
+    cost_analysis_results = analysis.calcular_custo_total_item(
+        item_name_to_evaluate,
         GLOBAL_SHOP_ITEMS,
-        previously_purchased_item_names
+        list(purchased_names_before_target_date) 
     )
+    
+    is_tier_unlockable_from_analysis = cost_analysis_results.get('is_tier_unlockable')
+    custo_item_original_from_analysis = cost_analysis_results.get('item_cost_original')
+    moeda_item_original_from_analysis = cost_analysis_results.get('item_currency_original')
+    tier_do_item_alvo_from_config = item_shop_data_config.get('tier')
+    
+    custo_desbloqueio_tier_em_tickets_from_analysis = cost_analysis_results.get('unlock_cost_tickets')
+    itens_ticket_para_desbloqueio_tier_from_analysis = cost_analysis_results.get('unlock_items_details', [])
+    total_tickets_a_debitar_from_analysis = cost_analysis_results.get('total_cost_tickets') 
 
-    custo_total_final_em_tickets = cost_info.get('total_cost') # Pode ser float('inf')
-    custo_desbloqueio_em_tickets = cost_info.get('unlock_cost') # Pode ser float('inf')
-    itens_necessarios_para_desbloqueio_com_custo = cost_info.get('unlock_items_details', [])
+    purchase_possible_on_target_date = False 
+    if item_shop_data_config.get('tier', 1) == 1: 
+        purchase_possible_on_target_date = True
+    elif is_tier_unlockable_from_analysis and custo_desbloqueio_tier_em_tickets_from_analysis == 0:
+        purchase_possible_on_target_date = True
+    elif is_tier_unlockable_from_analysis and custo_desbloqueio_tier_em_tickets_from_analysis > 0:
+        purchase_possible_on_target_date = True
+    else: 
+        purchase_possible_on_target_date = False
+        log.warning(f"Aquisição de '{item_name_to_evaluate}' (Tier {tier_do_item_alvo_from_config}) marcada como impossível: Tier não desbloqueado/desbloqueável na data {target_date_for_evaluation_str} com base nas compras estritamente anteriores.")
 
-    custo_a_ser_exibido = item_shop_data.get('cost') # Custo na moeda original do item
-    if moeda == 'ticket':
-        custo_a_ser_exibido = custo_total_final_em_tickets
+    cost_for_dialog = None
+    if not purchase_possible_on_target_date:
+        cost_for_dialog = custo_item_original_from_analysis 
+    elif moeda_item_original_from_analysis == 'ticket':
+        cost_for_dialog = total_tickets_a_debitar_from_analysis
+    else:
+        cost_for_dialog = custo_item_original_from_analysis
 
-    # Tratar float('inf') para serialização JSON
-    custo_a_ser_exibido_json = None if custo_a_ser_exibido == float('inf') else custo_a_ser_exibido
-    custo_desbloqueio_json = None if custo_desbloqueio_em_tickets == float('inf') else custo_desbloqueio_em_tickets
+    json_cost_for_dialog = None if cost_for_dialog == float('inf') else cost_for_dialog
+    json_total_tickets_to_debit = None if total_tickets_a_debitar_from_analysis == float('inf') else total_tickets_a_debitar_from_analysis
+    json_custo_desbloqueio_tier = None if custo_desbloqueio_tier_em_tickets_from_analysis == float('inf') else custo_desbloqueio_tier_em_tickets_from_analysis
+    
+    if not purchase_possible_on_target_date:
+        json_cost_for_dialog = None
 
-    # Mesmo que o item não seja de ticket, o custo de desbloqueio do tier (em tickets) ainda é relevante
-    # para o usuário entender o que precisa para liberar o tier.
-    # Se o item em si não é de ticket, seu "custo total em tickets" para aquisição é efetivamente infinito (ou não aplicável),
-    # mas o custo de desbloqueio do tier ainda pode ser um número (ou zero).
+    # ... (logs de debug) ...
+    log.debug(f"Detalhes API para '{item_name_to_evaluate}' (Moeda: {moeda_item_original_from_analysis}, Tier: {tier_do_item_alvo_from_config}):")
+    log.debug(f"  Tier Desbloqueável na data '{target_date_for_evaluation_str}': {purchase_possible_on_target_date}")
+    log.debug(f"  Custo Original do Item: {custo_item_original_from_analysis} {moeda_item_original_from_analysis}")
+    log.debug(f"  Custo Desbloqueio Tier (Tickets): {json_custo_desbloqueio_tier}")
+    log.debug(f"  Total Tickets a Debitar (se compra confirmada e possível): {json_total_tickets_to_debit}")
+    log.debug(f"  Custo para Diálogo (chave 'total_cost' no JSON): {json_cost_for_dialog}")
 
-    log.debug(f"Detalhes compra para '{item_name}': Custo Exibido (JSON)={custo_a_ser_exibido_json}, Moeda Item={moeda}, Custo Desbloqueio (JSON)={custo_desbloqueio_json}")
 
     return jsonify({
         "success": True,
-        "item_name": item_name,
-        "total_cost": custo_a_ser_exibido_json, # Custo na moeda do item, ou total em tickets se item for de ticket
-        "currency": moeda,
-        "tier": tier,
-        "unlock_cost": custo_desbloqueio_json, # Custo de desbloqueio em tickets (pode ser 0 ou null)
-        "unlock_items_details": itens_necessarios_para_desbloqueio_com_custo,
+        "item_name": item_name_to_evaluate,
+        "total_cost": json_cost_for_dialog, 
+        "currency": moeda_item_original_from_analysis,
+        "tier": tier_do_item_alvo_from_config,
+        "unlock_cost_tickets": json_custo_desbloqueio_tier,
+        "unlock_items_details": itens_ticket_para_desbloqueio_tier_from_analysis, 
+        "total_tickets_to_debit": json_total_tickets_to_debit, 
+        "is_tier_unlockable": purchase_possible_on_target_date, 
         "token_name": GLOBAL_SEASONAL_TOKEN_NAME
     })
 # ---> FIM ROTA CALCULO DE COMPRA CALENDARIO SAZONAL
